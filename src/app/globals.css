@@ -1,0 +1,392 @@
+@import "tailwindcss";
+
+:root {
+    --background: #F8FAFB;
+    --foreground: #0f172a;
+    --panel: rgba(255, 255, 255, 0.9);
+    --panel-border: rgba(148, 163, 184, 0.16);
+}
+
+html {
+    color-scheme: light;
+    height: -webkit-fill-available;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    min-height: 100svh;
+    min-height: 100dvh;
+    min-height: -webkit-fill-available;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-inter), sans-serif;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+button,
+input,
+select,
+textarea {
+    font: inherit;
+}
+
+::selection {
+    background: rgba(37, 99, 235, 0.18);
+    color: #0f172a;
+}
+
+a {
+    color: inherit;
+    text-decoration: none;
+}
+
+input,
+select,
+textarea {
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+}
+
+button {
+    cursor: pointer;
+}
+
+.digital-number {
+    font-family: "SFMono-Regular", "Roboto Mono", "Menlo", "Monaco", "Consolas", "Liberation Mono", "Courier New", monospace;
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings: "tnum" 1, "lnum" 1;
+    letter-spacing: -0.04em;
+}
+
+.dot-matrix-number {
+    font-family: "SFMono-Regular", "Roboto Mono", "Menlo", "Monaco", "Consolas", "Liberation Mono", "Courier New", monospace;
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings: "tnum" 1, "lnum" 1;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    line-height: 1;
+    background-image: radial-gradient(circle, currentColor 0 0.055em, transparent 0.07em);
+    background-size: 0.18em 0.18em;
+    background-position: center 56%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 0.12em color-mix(in srgb, currentColor 14%, transparent);
+}
+
+.led-display {
+    font-family: "SFMono-Regular", "Roboto Mono", "Menlo", "Monaco", "Consolas", "Liberation Mono", "Courier New", monospace;
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings: "tnum" 1, "lnum" 1;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-weight: 700;
+    line-height: 1;
+    text-shadow:
+        0 0 0.015em currentColor,
+        0 0 0.22em color-mix(in srgb, currentColor 24%, transparent),
+        0 0 0.44em color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.led-display--number {
+    letter-spacing: 0.02em;
+}
+
+.led-display--status {
+    letter-spacing: 0.12em;
+    font-size: 0.72rem;
+}
+
+.viewport-fill {
+    min-height: calc(100vh - 15rem);
+    min-height: calc(100svh - 15rem);
+    min-height: calc(100dvh - 15rem);
+}
+
+@supports (-webkit-touch-callout: none) {
+    .viewport-fill {
+        min-height: calc(-webkit-fill-available - 15rem);
+    }
+}
+
+@media (min-width: 1024px) and (max-height: 980px) {
+    .viewport-fill {
+        min-height: calc(100vh - 13rem);
+        min-height: calc(100svh - 13rem);
+        min-height: calc(100dvh - 13rem);
+    }
+
+    .dashboard-fit {
+        gap: 0.875rem;
+    }
+
+    .dashboard-status {
+        padding: 0.875rem !important;
+    }
+
+    .dashboard-stats,
+    .dashboard-main {
+        gap: 0.75rem !important;
+    }
+
+    .dashboard-fit .mb-6,
+    .dashboard-fit .mb-5,
+    .dashboard-fit .mt-6 {
+        margin-bottom: 0.75rem !important;
+        margin-top: 0.75rem !important;
+    }
+
+    .dashboard-fit .rounded-\[1\.35rem\] {
+        padding-top: 0.75rem;
+        padding-bottom: 0.75rem;
+    }
+
+    .dashboard-fit .rounded-\[1\.75rem\] {
+        padding: 1rem;
+    }
+
+    .dashboard-fit .h-14.w-14 {
+        height: 3rem;
+        width: 3rem;
+    }
+
+    .dashboard-fit .text-base.leading-7 {
+        font-size: 0.95rem;
+        line-height: 1.45rem;
+    }
+
+    .dashboard-fit .text-lg.font-semibold,
+    .dashboard-fit .text-base.font-semibold {
+        line-height: 1.3;
+    }
+
+    .dashboard-fit .text-sm.leading-6,
+    .dashboard-fit .text-sm.text-slate-600 {
+        line-height: 1.35rem;
+    }
+
+    .dashboard-fit .group.rounded-\[1\.35rem\] {
+        padding: 0.95rem;
+    }
+
+    .dashboard-fit .group.rounded-\[1\.35rem\] p.mt-3,
+    .dashboard-fit .rounded-\[1\.35rem\] p.mt-3 {
+        margin-top: 0.5rem;
+    }
+
+    .dashboard-fit .rounded-\[1\.65rem\] {
+        padding: 0.875rem;
+    }
+
+    .dashboard-fit .rounded-\[1\.3rem\],
+    .dashboard-fit .rounded-\[1\.15rem\],
+    .dashboard-fit .rounded-\[1rem\] {
+        padding-top: 0.7rem;
+        padding-bottom: 0.7rem;
+    }
+
+    .dashboard-fit .text-lg {
+        font-size: 1rem;
+    }
+
+    .dashboard-fit .text-sm {
+        line-height: 1.3rem;
+    }
+
+}
+
+@media (min-width: 1024px) and (max-height: 860px) {
+    .viewport-fill {
+        min-height: calc(100vh - 11rem);
+        min-height: calc(100svh - 11rem);
+        min-height: calc(100dvh - 11rem);
+    }
+
+    .dashboard-fit {
+        gap: 0.75rem;
+    }
+
+    .dashboard-status {
+        padding: 0.75rem !important;
+    }
+
+    .dashboard-stats,
+    .dashboard-main {
+        gap: 0.625rem !important;
+    }
+
+    .dashboard-fit .rounded-\[1\.75rem\] {
+        padding: 0.875rem;
+    }
+
+    .dashboard-fit .rounded-\[1\.35rem\],
+    .dashboard-fit .rounded-\[1\.2rem\] {
+        padding-top: 0.625rem;
+        padding-bottom: 0.625rem;
+    }
+
+    .dashboard-fit .h-14.w-14 {
+        height: 2.75rem;
+        width: 2.75rem;
+    }
+
+    .dashboard-fit .group.rounded-\[1\.35rem\] {
+        padding: 0.8rem;
+    }
+
+    .dashboard-fit .text-2xl,
+    .dashboard-fit .text-lg,
+    .dashboard-fit .text-base {
+        line-height: 1.25;
+    }
+
+    .dashboard-fit .rounded-\[1\.65rem\] {
+        padding: 0.75rem;
+    }
+
+    .dashboard-fit .rounded-\[1\.3rem\],
+    .dashboard-fit .rounded-\[1\.15rem\],
+    .dashboard-fit .rounded-\[1rem\] {
+        padding-top: 0.625rem;
+        padding-bottom: 0.625rem;
+    }
+
+    .dashboard-fit .mt-4,
+    .dashboard-fit .mt-3 {
+        margin-top: 0.625rem !important;
+    }
+
+    .dashboard-fit .text-lg {
+        font-size: 0.95rem;
+    }
+
+    .dashboard-fit .text-sm {
+        font-size: 0.8125rem;
+        line-height: 1.2rem;
+    }
+
+    .dashboard-fit .grid.gap-3.sm\:grid-cols-3,
+    .dashboard-fit .grid.gap-3.md\:grid-cols-3,
+    .dashboard-fit .grid.gap-3.md\:grid-cols-2 {
+        gap: 0.5rem;
+    }
+
+}
+
+:focus-visible {
+    outline: 2px solid rgba(37, 99, 235, 0.35);
+    outline-offset: 2px;
+}
+
+input[type="checkbox"] {
+    accent-color: #2563eb;
+}
+
+@media print {
+    .no-print {
+        display: none !important;
+    }
+
+    .print-only {
+        display: block !important;
+    }
+
+    html,
+    body {
+        background: #ffffff !important;
+        color: #000000 !important;
+    }
+
+    body {
+        font-size: 11pt;
+    }
+
+    .print-area {
+        width: 100%;
+    }
+
+    .print-entry,
+    .report-section,
+    section {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    a {
+        text-decoration: none !important;
+    }
+
+    .rounded-3xl,
+    .rounded-2xl,
+    .rounded-xl {
+        border-radius: 0 !important;
+    }
+
+    .shadow-sm,
+    .shadow-xl {
+        box-shadow: none !important;
+    }
+
+    .bg-slate-50,
+    .bg-blue-50,
+    .bg-emerald-50,
+    .bg-amber-50,
+    .bg-violet-50,
+    .bg-white {
+        background: #ffffff !important;
+    }
+
+    .border-slate-200,
+    .border-slate-300,
+    .border-blue-300,
+    .border-emerald-300,
+    .border-amber-300,
+    .border-violet-300 {
+        border-color: #cbd5e1 !important;
+    }
+
+    .text-slate-500,
+    .text-slate-600,
+    .text-slate-700,
+    .text-slate-800,
+    .text-slate-900,
+    .text-blue-800,
+    .text-emerald-800,
+    .text-amber-800,
+    .text-violet-800,
+    .text-red-800 {
+        color: #111827 !important;
+    }
+
+    .bg-blue-100,
+    .bg-emerald-100,
+    .bg-amber-100,
+    .bg-violet-100,
+    .bg-red-100,
+    .bg-slate-100 {
+        background: #ffffff !important;
+    }
+
+    .max-w-7xl {
+        max-width: none !important;
+    }
+
+    .p-6,
+    .p-8,
+    .px-6,
+    .py-6,
+    .px-5,
+    .py-4 {
+        padding: 0.75rem !important;
+    }
+
+    .mb-8,
+    .mb-6,
+    .mt-6 {
+        margin-top: 0.75rem !important;
+        margin-bottom: 0.75rem !important;
+    }
+}
