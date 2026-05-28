@@ -60,6 +60,19 @@ type EntryRow = {
   } | null;
 };
 
+type RawEntryRow = Omit<EntryRow, "occurrence_categories"> & {
+  occurrence_categories:
+    | {
+        name: string;
+        code: string;
+      }
+    | {
+        name: string;
+        code: string;
+      }[]
+    | null;
+};
+
 type AuthorProfile = {
   id: string;
   full_name: string | null;
@@ -169,6 +182,17 @@ function formatUtcTime(value: string | null) {
 
 function formatText(value: string | null) {
   return value?.trim() || "—";
+}
+
+function normalizeEntryRow(entry: RawEntryRow): EntryRow {
+  const category = Array.isArray(entry.occurrence_categories)
+    ? entry.occurrence_categories[0] ?? null
+    : entry.occurrence_categories;
+
+  return {
+    ...entry,
+    occurrence_categories: category,
+  };
 }
 
 function SearchField({
@@ -409,7 +433,9 @@ export default function ShiftRecordDetailPage() {
         return;
       }
 
-      const loadedEntries = (entriesData as EntryRow[]) || [];
+      const loadedEntries = ((entriesData as RawEntryRow[] | null) ?? []).map(
+        normalizeEntryRow,
+      );
       setEntries(loadedEntries);
 
       const { data: positionLogsData, error: positionLogsError } = await supabase
