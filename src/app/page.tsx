@@ -432,6 +432,7 @@ export default function Home() {
   const [isPasswordRecoveryMode, setIsPasswordRecoveryMode] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [showForgotPasswordAction, setShowForgotPasswordAction] = useState(false);
 
   const loadProfileAndShift = async (
     userId?: string,
@@ -960,17 +961,35 @@ export default function Home() {
     setLoginLoading(true);
     setMessage("");
     setNotice("");
+    setShowForgotPasswordAction(false);
     isLoggingOutRef.current = false;
 
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
+
+    if (!trimmedEmail) {
+      setMessage("Introduza o email da conta.");
+      setLoginLoading(false);
+      return;
+    }
+
+    if (!trimmedPassword) {
+      setMessage("Introduza a palavra-passe ou use a opção de redefinição.");
+      setShowForgotPasswordAction(true);
+      setLoginLoading(false);
+      return;
+    }
+
     const { data: loginData, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
+      email: trimmedEmail,
+      password: trimmedPassword,
     });
 
     if (error) {
       setMessage(
         getFriendlyErrorMessage("Não foi possível entrar na aplicação", error.message),
       );
+      setShowForgotPasswordAction(true);
       setLoginLoading(false);
       return;
     }
@@ -1589,7 +1608,7 @@ export default function Home() {
                       </div>
                     </div>
                   </div>
-                ) : (
+                ) : showForgotPasswordAction ? (
                   <div className="flex justify-end">
                     <button
                       type="button"
@@ -1603,7 +1622,7 @@ export default function Home() {
                         : "Esqueceu-se da palavra-passe?"}
                     </button>
                   </div>
-                )}
+                ) : null}
               </div>
 
               <button
