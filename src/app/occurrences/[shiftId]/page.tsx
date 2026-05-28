@@ -598,6 +598,11 @@ export default function ShiftRecordDetailPage() {
     [entries],
   );
 
+  const hasActivePositionLogs = useMemo(
+    () => positionLogs.some((log) => !log.left_at_utc),
+    [positionLogs],
+  );
+
   const filteredEntries = useMemo(() => {
     return entries.filter((entry) => {
       if (!search) return true;
@@ -632,6 +637,7 @@ export default function ShiftRecordDetailPage() {
     !!shift &&
     shift.status === "OPEN" &&
     entries.length > 0 &&
+    !hasActivePositionLogs &&
     !shift.validated_at_utc &&
     !!currentProfile &&
     shift.opened_by === currentProfile.id;
@@ -649,6 +655,13 @@ export default function ShiftRecordDetailPage() {
 
     if (shift.validated_at_utc) {
       setMessage("Este registo ATS já se encontra validado.");
+      return;
+    }
+
+    if (hasActivePositionLogs) {
+      setMessage(
+        "Não é possível validar o registo ATS enquanto existirem posições operacionais ainda ativas.",
+      );
       return;
     }
 
@@ -1328,6 +1341,8 @@ export default function ShiftRecordDetailPage() {
                     ? "Registo ATS validado."
                     : entries.length === 0
                     ? "Sem ocorrências ATS para validar neste turno."
+                    : hasActivePositionLogs
+                    ? "Feche primeiro todas as posições operacionais ativas antes de validar o registo ATS."
                     : shift.status !== "OPEN"
                     ? "A validação só pode ser feita enquanto o turno estiver aberto."
                     : `Só o utilizador ${openedByName} que abriu o turno pode efetuar esta validação.`}
