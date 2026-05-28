@@ -364,6 +364,24 @@ function QuickAccessCard({
   );
 }
 
+function hasRecoveryParamsInUrl() {
+  if (typeof window === "undefined") return false;
+
+  const searchParams = new URLSearchParams(window.location.search);
+  const hash = window.location.hash.startsWith("#")
+    ? window.location.hash.slice(1)
+    : window.location.hash;
+  const hashParams = new URLSearchParams(hash);
+
+  return (
+    searchParams.get("type") === "recovery" ||
+    hashParams.get("type") === "recovery" ||
+    (searchParams.has("code") && searchParams.get("type") === "recovery") ||
+    (hashParams.has("access_token") && hashParams.get("type") === "recovery") ||
+    searchParams.has("token_hash")
+  );
+}
+
 function DashboardIconBox({
   children,
   tone = "blue",
@@ -397,6 +415,8 @@ export default function Home() {
   const [logoutLoading, setLogoutLoading] = useState(false);
   const [booting, setBooting] = useState(true);
   const [message, setMessage] = useState("");
+  const [notice, setNotice] = useState("");
+  const [noticeTone, setNoticeTone] = useState<"success" | "info">("info");
   const [profile, setProfile] = useState<Profile | null>(null);
   const [atsUnit, setAtsUnit] = useState<AtsUnit | null>(null);
   const [openShift, setOpenShift] = useState<Shift | null>(null);
@@ -407,6 +427,11 @@ export default function Home() {
   const [activePositionLogs, setActivePositionLogs] = useState<ActivePositionLog[]>([]);
   const [positionLogsCount, setPositionLogsCount] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
+  const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false);
+  const [recoveryLoading, setRecoveryLoading] = useState(false);
+  const [isPasswordRecoveryMode, setIsPasswordRecoveryMode] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
 
   const loadProfileAndShift = async (
     userId?: string,
@@ -607,6 +632,13 @@ export default function Home() {
 
     const bootstrap = async () => {
       if (isLoggingOutRef.current) return;
+      if (hasRecoveryParamsInUrl()) {
+        setIsPasswordRecoveryMode(true);
+        setBooting(false);
+        setNotice("Defina a nova palavra-passe para concluir a recuperação da conta.");
+        setNoticeTone("info");
+        return;
+      }
       await loadProfileAndShift(undefined, mounted);
       if (mounted) setBooting(false);
     };
@@ -619,6 +651,24 @@ export default function Home() {
       if (!mounted) return;
       if (isLoggingOutRef.current) return;
       if (event === "INITIAL_SESSION") return;
+
+      if (event === "PASSWORD_RECOVERY" || hasRecoveryParamsInUrl()) {
+        setIsPasswordRecoveryMode(true);
+        setBooting(false);
+        setProfile(null);
+        setAtsUnit(null);
+        setOpenShift(null);
+        setOpenShiftOpenedByName("—");
+        setLastClosedShift(null);
+        setActiveOccurrencesCount(0);
+        setActivePendingCount(0);
+        setActivePositionLogs([]);
+        setPositionLogsCount(0);
+        setNotice("Defina a nova palavra-passe para concluir a recuperação da conta.");
+        setNoticeTone("info");
+        setMessage("");
+        return;
+      }
 
       void (async () => {
         await loadProfileAndShift(session?.user?.id, mounted);
@@ -909,6 +959,7 @@ export default function Home() {
     e.preventDefault();
     setLoginLoading(true);
     setMessage("");
+    setNotice("");
     isLoggingOutRef.current = false;
 
     const { data: loginData, error } = await supabase.auth.signInWithPassword({
@@ -928,6 +979,90 @@ export default function Home() {
     setLoginLoading(false);
     router.replace("/");
     router.refresh();
+  };
+
+  const handleForgotPassword = async () => {
+    const trimmedEmail = email.trim();
+
+    if (!trimmedEmail) {
+      setMessage("Introduza primeiro o email da conta para receber o link de recuperação.");
+      setNotice("");
+      return;
+    }
+
+    setForgotPasswordLoading(true);
+    setMessage("");
+    setNotice("");
+
+    const { error } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
+      redirectTo: `${window.location.origin}/`,
+    });
+
+    if (error) {
+      setMessage(
+        getFriendlyErrorMessage(
+          "Não foi possível enviar o email de recuperação",
+          error.message,
+        ),
+      );
+      setForgotPasswordLoading(false);
+      return;
+    }
+
+    setNotice(
+      "Se o email existir no sistema, enviámos um link para redefinir a palavra-passe.",
+    );
+    setNoticeTone("success");
+    setForgotPasswordLoading(false);
+  };
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!newPassword || !confirmNewPassword) {
+      setMessage("Preencha os dois campos da nova palavra-passe.");
+      setNotice("");
+      return;
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      setMessage("A confirmação da nova palavra-passe não coincide.");
+      setNotice("");
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setMessage("A nova palavra-passe deve ter pelo menos 6 caracteres.");
+      setNotice("");
+      return;
+    }
+
+    setRecoveryLoading(true);
+    setMessage("");
+    setNotice("");
+
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+
+    if (error) {
+      setMessage(
+        getFriendlyErrorMessage(
+          "Não foi possível atualizar a palavra-passe",
+          error.message,
+        ),
+      );
+      setRecoveryLoading(false);
+      return;
+    }
+
+    await supabase.auth.signOut({ scope: "local" });
+    setIsPasswordRecoveryMode(false);
+    setNewPassword("");
+    setConfirmNewPassword("");
+    setEmail("");
+    setPassword("");
+    setNotice("Palavra-passe atualizada com sucesso. Já pode entrar com a nova credencial.");
+    setNoticeTone("success");
+    setRecoveryLoading(false);
   };
 
   const handleLogout = async () => {
@@ -961,7 +1096,7 @@ export default function Home() {
     );
   }
 
-  if (profile) {
+  if (profile && !isPasswordRecoveryMode) {
     return (
       <main className="min-h-screen bg-[#F8FAFB] text-slate-900">
         <div className="mx-auto max-w-7xl p-5 lg:p-7">
@@ -1380,7 +1515,10 @@ export default function Home() {
               </p>
             </div>
 
-            <form onSubmit={handleLogin} className="space-y-4">
+            <form
+              onSubmit={isPasswordRecoveryMode ? handleUpdatePassword : handleLogin}
+              className="space-y-4"
+            >
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700">Email</label>
                 <div className="relative">
@@ -1391,6 +1529,7 @@ export default function Home() {
                     className="w-full rounded-[0.75rem] border border-slate-200 bg-white py-3 pl-12 pr-4 text-[15px] text-slate-900 shadow-[0_12px_28px_-24px_rgba(15,23,42,0.16)] outline-none transition placeholder:text-slate-400 focus:border-[#cfddeb] focus:ring-2 focus:ring-[#1d4f91]/10"
                     placeholder="ex.: nome@dominio.com"
                     required
+                    disabled={isPasswordRecoveryMode}
                   />
                   <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400">
                     <EnvelopeIcon />
@@ -1399,14 +1538,24 @@ export default function Home() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700">Palavra-passe</label>
+                <label className="text-sm font-semibold text-slate-700">
+                  {isPasswordRecoveryMode ? "Nova palavra-passe" : "Palavra-passe"}
+                </label>
                 <div className="relative">
                   <input
                     type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    value={isPasswordRecoveryMode ? newPassword : password}
+                    onChange={(e) =>
+                      isPasswordRecoveryMode
+                        ? setNewPassword(e.target.value)
+                        : setPassword(e.target.value)
+                    }
                     className="w-full rounded-[0.75rem] border border-slate-200 bg-white py-3 pl-12 pr-12 text-[15px] text-slate-900 shadow-[0_12px_28px_-24px_rgba(15,23,42,0.16)] outline-none transition placeholder:text-slate-400 focus:border-[#cfddeb] focus:ring-2 focus:ring-[#1d4f91]/10"
-                    placeholder="Introduza a sua palavra-passe"
+                    placeholder={
+                      isPasswordRecoveryMode
+                        ? "Introduza a nova palavra-passe"
+                        : "Introduza a sua palavra-passe"
+                    }
                     required
                   />
                   <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400">
@@ -1421,23 +1570,56 @@ export default function Home() {
                     <EyeIcon open={showPassword} />
                   </button>
                 </div>
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    className="font-medium text-[#1d4f91] transition hover:text-[#163d70] hover:underline"
-                    style={{ fontSize: "11px", lineHeight: "1.2" }}
-                  >
-                    Esqueceu-se da palavra-passe?
-                  </button>
-                </div>
+                {isPasswordRecoveryMode ? (
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-slate-700">
+                      Confirmar nova palavra-passe
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        value={confirmNewPassword}
+                        onChange={(e) => setConfirmNewPassword(e.target.value)}
+                        className="w-full rounded-[0.75rem] border border-slate-200 bg-white py-3 pl-12 pr-12 text-[15px] text-slate-900 shadow-[0_12px_28px_-24px_rgba(15,23,42,0.16)] outline-none transition placeholder:text-slate-400 focus:border-[#cfddeb] focus:ring-2 focus:ring-[#1d4f91]/10"
+                        placeholder="Confirme a nova palavra-passe"
+                        required
+                      />
+                      <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400">
+                        <LockIcon />
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={handleForgotPassword}
+                      disabled={forgotPasswordLoading}
+                      className="font-medium text-[#1d4f91] transition hover:text-[#163d70] hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+                      style={{ fontSize: "11px", lineHeight: "1.2" }}
+                    >
+                      {forgotPasswordLoading
+                        ? "A enviar..."
+                        : "Esqueceu-se da palavra-passe?"}
+                    </button>
+                  </div>
+                )}
               </div>
 
               <button
                 type="submit"
-                disabled={loginLoading}
+                disabled={isPasswordRecoveryMode ? recoveryLoading : loginLoading}
                 className="inline-flex w-full items-center justify-center gap-3 rounded-[0.8rem] border border-[#1d4f91] bg-[#1d4f91] px-5 py-3.5 text-[1rem] font-semibold text-white shadow-[0_18px_34px_-18px_rgba(29,79,145,0.5)] transition duration-200 hover:-translate-y-0.5 hover:border-[#f28c28] hover:bg-[#f28c28] hover:shadow-[0_20px_38px_-18px_rgba(242,140,40,0.5)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2a67ba]/35 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <span>{loginLoading ? "A entrar..." : "Entrar"}</span>
+                <span>
+                  {isPasswordRecoveryMode
+                    ? recoveryLoading
+                      ? "A atualizar..."
+                      : "Atualizar palavra-passe"
+                    : loginLoading
+                      ? "A entrar..."
+                      : "Entrar"}
+                </span>
                 <ArrowRightIcon />
               </button>
 
@@ -1455,6 +1637,18 @@ export default function Home() {
                 />
               </div>
             </form>
+
+            {notice && (
+              <div
+                className={`rounded-[0.8rem] border px-4 py-4 text-sm ${
+                  noticeTone === "success"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                    : "border-blue-200 bg-blue-50 text-blue-700"
+                }`}
+              >
+                {notice}
+              </div>
+            )}
 
             {message && (
               <div className="rounded-[0.8rem] border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700">
