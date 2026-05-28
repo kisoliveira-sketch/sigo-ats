@@ -1015,7 +1015,9 @@ export default function Home() {
                       {operationalStatus}
                     </h2>
                     <div className="mt-4 inline-flex items-center gap-2 text-[14px] text-slate-600">
-                      <UsersIcon className="h-[18px] w-[18px]" />
+                      <span className="flex h-[18px] w-[18px] items-center justify-center">
+                        <UsersIcon />
+                      </span>
                       <span>
                         {activePositionStatus}
                       </span>
