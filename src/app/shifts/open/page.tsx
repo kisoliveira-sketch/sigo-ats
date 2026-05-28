@@ -63,20 +63,18 @@ type ShiftOption = {
   start: string;
 };
 
-const SHIFT_OPTIONS: ShiftOption[] = [
+const AICE_SHIFT_OPTIONS: ShiftOption[] = [
   { label: "07:00 - 13:00", suffix: "0700/1300", start: "07:00" },
-  { label: "08:30 - 14:30", suffix: "0830/1430", start: "08:30" },
   { label: "13:00 - 19:00", suffix: "1300/1900", start: "13:00" },
-  { label: "14:30 - 20:30", suffix: "1430/2030", start: "14:30" },
-  { label: "19:00 - 23:00", suffix: "1900/2300", start: "19:00" },
-  { label: "20:30 - 00:30", suffix: "2030/0030", start: "20:30" },
+  { label: "19:00 - 01:00", suffix: "1900/0100", start: "19:00" },
+  { label: "01:00 - 07:00", suffix: "0100/0700", start: "01:00" },
 ];
 
 const ACC_SAL_SHIFT_OPTIONS: ShiftOption[] = [
-  { label: "07:30 - 13:30", suffix: "0730/1330", start: "07:30" },
-  { label: "13:30 - 19:30", suffix: "1330/1930", start: "13:30" },
-  { label: "19:30 - 23:30", suffix: "1930/2330", start: "19:30" },
-  { label: "23:30 - 07:30", suffix: "2330/0730", start: "23:30" },
+  { label: "08:30 - 14:30", suffix: "0830/1430", start: "08:30" },
+  { label: "14:30 - 20:30", suffix: "1430/2030", start: "14:30" },
+  { label: "20:30 - 00:30", suffix: "2030/0030", start: "20:30" },
+  { label: "00:30 - 08:30", suffix: "0030/0830", start: "00:30" },
 ];
 
 const DEFAULT_MEMBERS: ShiftMember[] = [
@@ -103,7 +101,12 @@ export default function OpenShiftPage() {
   const [members, setMembers] = useState<ShiftMember[]>(DEFAULT_MEMBERS);
 
   const availableShiftOptions = useMemo(
-    () => (atsUnit?.code === "ACC_SAL" ? ACC_SAL_SHIFT_OPTIONS : SHIFT_OPTIONS),
+    () =>
+      atsUnit?.code === "ACC_SAL"
+        ? ACC_SAL_SHIFT_OPTIONS
+        : atsUnit?.code === "AICE"
+          ? AICE_SHIFT_OPTIONS
+          : AICE_SHIFT_OPTIONS,
     [atsUnit?.code],
   );
 
