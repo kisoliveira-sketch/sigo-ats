@@ -138,7 +138,7 @@ begin
       select
         auth_user.id,
         case auth_user.email
-          when 'aabigail.fernandes@asa.cv' then 'Abigail Fernandes'
+          when 'abigail.fernandes@asa.cv' then 'Abigail Fernandes'
           when 'carlos.monteiro@asa.cv' then 'Carlos Monteiro'
           when 'jorge.semedo@asa.cv' then 'Jorge Semedo'
           when 'janito.carvalho@asa.cv' then 'Janito Carvalho'
@@ -156,7 +156,7 @@ begin
         %s
       from auth.users as auth_user
       where auth_user.email in (
-        'aabigail.fernandes@asa.cv',
+        'abigail.fernandes@asa.cv',
         'carlos.monteiro@asa.cv',
         'jorge.semedo@asa.cv',
         'janito.carvalho@asa.cv',

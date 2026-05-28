@@ -14,7 +14,7 @@
 
 ## Utilizadores
 
-- Abigail Fernandes — Supervisora — `aabigail.fernandes@asa.cv`
+- Abigail Fernandes — Supervisora — `abigail.fernandes@asa.cv`
 - Carlos Monteiro — Supervisor — `carlos.monteiro@asa.cv`
 - Jorge Semedo — Supervisor — `jorge.semedo@asa.cv`
 - Janito Carvalho — Supervisor — `janito.carvalho@asa.cv`
