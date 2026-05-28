@@ -1530,7 +1530,7 @@ export default function Home() {
 
             <div className="flex items-center justify-center text-center text-slate-700">
               <p className="text-[11px] font-medium leading-4 sm:text-[12px]">
-                Acesso à plataforma de registo e gestão de ocorrências ATS
+                Acesso ao sistema de gestão operacional e registo de ocorrências ATS
               </p>
             </div>
 
