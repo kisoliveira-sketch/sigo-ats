@@ -77,6 +77,13 @@ const ACC_SAL_SHIFT_OPTIONS: ShiftOption[] = [
   { label: "00:30 - 08:30", suffix: "0030/0830", start: "00:30" },
 ];
 
+const TWR_AIPNM_SHIFT_OPTIONS: ShiftOption[] = [
+  { label: "08:30 - 14:30", suffix: "0830/1430", start: "08:30" },
+  { label: "14:30 - 20:30", suffix: "1430/2030", start: "14:30" },
+  { label: "20:30 - 00:30", suffix: "2030/0030", start: "20:30" },
+  { label: "00:30 - 08:30", suffix: "0030/0830", start: "00:30" },
+];
+
 const DEFAULT_MEMBERS: ShiftMember[] = [
   { user_id: "", role_in_shift: "Supervisor" },
   { user_id: "", role_in_shift: "CTA Operacional" },
@@ -104,6 +111,8 @@ export default function OpenShiftPage() {
     () =>
       atsUnit?.code === "ACC_SAL"
         ? ACC_SAL_SHIFT_OPTIONS
+        : atsUnit?.code === "TWR_AIPNM"
+          ? TWR_AIPNM_SHIFT_OPTIONS
         : atsUnit?.code === "AICE"
           ? AICE_SHIFT_OPTIONS
           : AICE_SHIFT_OPTIONS,
