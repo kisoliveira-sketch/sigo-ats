@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { getFriendlyErrorMessage } from "@/lib/friendly-errors";
 import { supabase } from "@/lib/supabase";
+import { formatUtcDateTime, getCurrentUtcIso } from "@/lib/time";
 import {
   AlertIcon,
   appButtonClass,
@@ -312,7 +313,7 @@ export default function CloseShiftPage() {
     setMessage("");
     setMessageType("");
 
-    const endIso = new Date().toISOString();
+    const endIso = getCurrentUtcIso();
 
     const { error } = await supabase
       .from("shifts")
@@ -340,17 +341,6 @@ export default function CloseShiftPage() {
       router.replace("/");
       router.refresh();
     }, 700);
-  };
-
-  const formatDateTime = (value: string | null) => {
-    if (!value) return "—";
-    return new Date(value).toLocaleString("pt-PT", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
   };
 
   const getSeverityBadge = (severity: string) => {
@@ -531,7 +521,7 @@ export default function CloseShiftPage() {
                     Início UTC
                   </p>
                   <p className="mt-2 text-sm font-medium text-slate-900">
-                    {formatDateTime(openShift.start_time_utc)}
+                    {formatUtcDateTime(openShift.start_time_utc)}
                   </p>
                 </div>
 
@@ -660,7 +650,7 @@ export default function CloseShiftPage() {
                           Entrada
                         </p>
                         <p className="mt-1 text-sm text-slate-700">
-                          {formatDateTime(log.entered_at_utc)}
+                          {formatUtcDateTime(log.entered_at_utc)}
                         </p>
                       </div>
                       <div>
@@ -668,7 +658,7 @@ export default function CloseShiftPage() {
                           Saída
                         </p>
                         <p className="mt-1 text-sm text-slate-700">
-                          {formatDateTime(log.left_at_utc)}
+                          {formatUtcDateTime(log.left_at_utc)}
                         </p>
                       </div>
                     </div>
@@ -714,7 +704,7 @@ export default function CloseShiftPage() {
                           {item.occurrence_number}
                         </p>
                         <p className="mt-1 text-sm text-slate-500">
-                          {formatDateTime(item.occurrence_at_utc)}
+                          {formatUtcDateTime(item.occurrence_at_utc)}
                         </p>
                       </div>
 

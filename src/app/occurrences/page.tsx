@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { formatUtcDateTime } from "@/lib/time";
 import {
   appButtonClass,
   appFieldClass,
@@ -189,17 +190,6 @@ export default function OccurrencesPage() {
       : "border-slate-300 bg-slate-100 text-slate-700";
   };
 
-  const formatDateTime = (value: string | null) => {
-    if (!value) return "-";
-    return new Date(value).toLocaleString("pt-PT", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
   const pageStart =
     filteredRows.length === 0 ? 0 : (safeCurrentPage - 1) * PAGE_SIZE + 1;
   const pageEnd = Math.min(safeCurrentPage * PAGE_SIZE, filteredRows.length);
@@ -349,7 +339,7 @@ export default function OccurrencesPage() {
                       </div>
 
                       <div className="text-sm text-slate-500 lg:text-right">
-                        {formatDateTime(row.start_time_utc)}
+                        {formatUtcDateTime(row.start_time_utc)}
                       </div>
                     </div>
                   </Link>

@@ -6,7 +6,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { exportShiftReportPdf } from "@/lib/export-shift-report-pdf";
+import { formatUtcDateTime, formatUtcTime, getCurrentUtcIso } from "@/lib/time";
 import {
+  AppFooter,
   appCheckboxClass,
   appFieldClass,
   appButtonClass,
@@ -88,9 +90,7 @@ type PositionLogRow = {
 };
 
 function getValidationTimestampIso() {
-  const now = new Date();
-  now.setUTCHours(now.getUTCHours() + 1);
-  return now.toISOString();
+  return getCurrentUtcIso();
 }
 
 function canManageOccurrence(profile: CurrentProfile | null, createdBy: string | null) {
@@ -145,40 +145,6 @@ function PdfIcon() {
 
 const topActionButtonClass =
   "inline-flex items-center justify-center rounded-[0.72rem] border border-slate-200 bg-white px-3.5 py-2 text-[13px] font-semibold text-slate-700 transition duration-200 hover:-translate-y-0.5 hover:border-[#1d4f91] hover:bg-[#1d4f91] hover:text-white hover:shadow-[0_16px_28px_-18px_rgba(29,79,145,0.42)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2a67ba]/35";
-
-function formatDateTime(value: string | null) {
-  if (!value) return "—";
-  return new Date(value).toLocaleString("pt-PT", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function formatUtcDateTime(value: string | null) {
-  if (!value) return "—";
-
-  const date = new Date(value);
-  const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(date.getUTCDate()).padStart(2, "0");
-  const hours = String(date.getUTCHours()).padStart(2, "0");
-  const minutes = String(date.getUTCMinutes()).padStart(2, "0");
-
-  return `${year}-${month}-${day} ${hours}:${minutes} UTC`;
-}
-
-function formatUtcTime(value: string | null) {
-  if (!value) return "—";
-
-  const date = new Date(value);
-  const hours = String(date.getUTCHours()).padStart(2, "0");
-  const minutes = String(date.getUTCMinutes()).padStart(2, "0");
-
-  return `${hours}:${minutes} UTC`;
-}
 
 function formatText(value: string | null) {
   return value?.trim() || "—";
@@ -956,7 +922,7 @@ export default function ShiftRecordDetailPage() {
                     Início UTC
                   </div>
                   <div className="mt-1.5 text-sm font-semibold text-slate-900">
-                    {formatDateTime(shift.start_time_utc)}
+                    {formatUtcDateTime(shift.start_time_utc)}
                   </div>
                 </div>
                 <div className="rounded-[0.8rem] border border-slate-200/80 bg-slate-50/70 px-3.5 py-3">
@@ -964,7 +930,7 @@ export default function ShiftRecordDetailPage() {
                     Fim UTC
                   </div>
                   <div className="mt-1.5 text-sm font-semibold text-slate-900">
-                    {formatDateTime(shift.end_time_utc)}
+                    {formatUtcDateTime(shift.end_time_utc)}
                   </div>
                 </div>
               </div>
@@ -1351,6 +1317,10 @@ export default function ShiftRecordDetailPage() {
             </div>
           </section>
         </article>
+
+        <div className="no-print mt-6">
+          <AppFooter />
+        </div>
       </div>
     </main>
   );

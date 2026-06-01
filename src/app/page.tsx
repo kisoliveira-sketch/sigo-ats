@@ -6,7 +6,9 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getFriendlyErrorMessage } from "@/lib/friendly-errors";
 import { supabase } from "@/lib/supabase";
+import { formatRecentUtcMoment, formatUtcTime } from "@/lib/time";
 import {
+  AppFooter,
   FileIcon,
   GridIcon,
   InfoIcon,
@@ -819,39 +821,6 @@ export default function Home() {
     operationalStatus,
   ].join(" · ");
 
-  const formatTimeOnly = (value?: string | null) => {
-    if (!value) return "—";
-    return new Intl.DateTimeFormat("pt-PT", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(new Date(value));
-  };
-
-  const formatRecentShiftMoment = (value?: string | null) => {
-    if (!value) return "—";
-
-    const date = new Date(value);
-    const now = new Date();
-
-    const isSameDay =
-      date.getFullYear() === now.getFullYear() &&
-      date.getMonth() === now.getMonth() &&
-      date.getDate() === now.getDate();
-
-    if (isSameDay) {
-      return formatTimeOnly(value);
-    }
-
-    return new Intl.DateTimeFormat("pt-PT", {
-      day: "2-digit",
-      month: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(date);
-  };
-
   const quickAccessTurnActionLabel = hasOpenShift ? "Encerrar turno" : "Abrir turno";
   const quickAccessTurnActionDescription = hasOpenShift
     ? "Só quem abriu o turno o pode encerrar."
@@ -1139,7 +1108,7 @@ export default function Home() {
                 <button
                   onClick={handleLogout}
                   disabled={logoutLoading}
-                  className="inline-flex items-center justify-center gap-2 rounded-[0.8rem] border border-[#f28c28] bg-[#f28c28] px-4 py-2.5 text-[14px] font-semibold text-white transition duration-200 hover:-translate-y-0.5 hover:border-[#dd7818] hover:bg-[#dd7818] hover:shadow-[0_18px_30px_-18px_rgba(242,140,40,0.55)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f28c28]/35 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex min-w-[132px] items-center justify-center gap-2 rounded-[0.8rem] border border-[#f28c28] bg-[#f28c28] px-4 py-2.5 text-[14px] font-semibold text-white transition duration-200 hover:-translate-y-0.5 hover:border-[#dd7818] hover:bg-[#dd7818] hover:shadow-[0_18px_30px_-18px_rgba(242,140,40,0.55)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f28c28]/35 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <LogoutIcon />
                   {logoutLoading ? "A sair..." : "Sair"}
@@ -1147,7 +1116,7 @@ export default function Home() {
 
                 <Link
                   href="/help"
-                  className="inline-flex items-center justify-center gap-2 rounded-[0.8rem] border border-slate-200 bg-white px-4 py-2 text-[13px] font-semibold text-[#1d4f91] shadow-[0_12px_22px_-18px_rgba(15,23,42,0.14)] transition duration-200 hover:-translate-y-0.5 hover:border-[#2a67ba] hover:bg-[#eef4fb] hover:text-[#1d4f91] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2a67ba]/35"
+                  className="inline-flex min-w-[132px] items-center justify-center gap-2 rounded-[0.8rem] border border-slate-200 bg-white px-4 py-2.5 text-[14px] font-semibold text-[#1d4f91] shadow-[0_12px_22px_-18px_rgba(15,23,42,0.14)] transition duration-200 hover:-translate-y-0.5 hover:border-[#2a67ba] hover:bg-[#eef4fb] hover:text-[#1d4f91] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2a67ba]/35"
                 >
                   <InfoIcon />
                   Ajuda
@@ -1425,7 +1394,7 @@ export default function Home() {
                     },
                     {
                       id: "last-update",
-                      value: formatTimeOnly(lastClosedShift?.end_time_utc),
+                      value: formatUtcTime(lastClosedShift?.end_time_utc),
                       label: (
                         <>
                           Última
@@ -1506,7 +1475,7 @@ export default function Home() {
                       <span>Último fecho de turno</span>
                     </div>
                     <span className="font-medium text-slate-800">
-                      {formatRecentShiftMoment(lastClosedShift?.end_time_utc)}
+                      {formatRecentUtcMoment(lastClosedShift?.end_time_utc)}
                     </span>
                   </div>
                 </div>
@@ -1516,6 +1485,8 @@ export default function Home() {
             <section className="rounded-[0.8rem] border border-slate-200 bg-white px-4 py-2 text-[13px] font-medium text-slate-600 shadow-[0_18px_36px_-30px_rgba(15,23,42,0.16)]">
               {sessionLine}
             </section>
+
+            <AppFooter />
           </div>
         </div>
       </main>
@@ -1700,6 +1671,12 @@ export default function Home() {
             )}
           </div>
         </section>
+      </div>
+
+      <div className="relative z-10 px-4 pb-4 sm:px-6 sm:pb-6">
+        <div className="mx-auto max-w-[510px]">
+          <AppFooter />
+        </div>
       </div>
     </main>
   );
