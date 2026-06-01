@@ -31,7 +31,7 @@ type ShiftRow = {
   shift_staff?: ShiftStaffRow[] | null;
 };
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 20;
 
 function SearchIcon() {
   return (
@@ -381,30 +381,9 @@ export default function OccurrencesPage() {
                     Anterior
                   </button>
 
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                    (page) => {
-                      const start = (page - 1) * PAGE_SIZE + 1;
-                      const end = Math.min(
-                        page * PAGE_SIZE,
-                        filteredRows.length,
-                      );
-
-                      return (
-                        <button
-                          key={page}
-                          type="button"
-                          onClick={() => setCurrentPage(page)}
-                          className={
-                            safeCurrentPage === page
-                              ? appButtonClass("primary", "xs")
-                              : appButtonClass("secondary", "xs")
-                          }
-                        >
-                          {start}–{end}
-                        </button>
-                      );
-                    },
-                  )}
+                  <span className="inline-flex items-center justify-center rounded-[0.65rem] border border-slate-200 bg-slate-50 px-3 py-1.5 text-[12px] font-semibold text-slate-700">
+                    {pageStart}–{pageEnd}
+                  </span>
 
                   <button
                     type="button"

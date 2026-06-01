@@ -1500,13 +1500,13 @@ export default function Home() {
 
   return (
     <main
-      className="app-atc-background relative min-h-screen w-full overflow-hidden bg-cover bg-center bg-no-repeat text-slate-900"
+      className="relative min-h-screen w-full overflow-hidden bg-[#f7fbff] bg-cover bg-center bg-no-repeat text-slate-900"
       style={{
         backgroundImage:
           'url("https://dtqajfxkhfarwqzuuepn.supabase.co/storage/v1/object/sign/occurrences-docs/fundo_login.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9iZjJmYzNkZS1kZDQzLTQ5NGYtYjk1MS03NTcyMGZkYmVhYzciLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJvY2N1cnJlbmNlcy1kb2NzL2Z1bmRvX2xvZ2luLnBuZyIsImlhdCI6MTc3NzEwNTEzNSwiZXhwIjo0OTMwNzA1MTM1fQ.Id1a8DIXSqJ8O3AQOsaund-sY4yfRp4kgiuEbq6Cf9A")',
       }}
     >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.06),_rgba(232,238,243,0.32)_42%,_rgba(232,238,243,0.42)_100%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.1),_rgba(247,251,255,0.2)_42%,_rgba(247,251,255,0.26)_100%)]" />
 
       <div className="relative z-10 flex min-h-screen w-full items-center justify-center p-4 sm:p-6">
         <section className="mx-auto w-full max-w-[510px] rounded-[18px] border border-white/80 bg-white/94 px-[26px] py-[28px] shadow-[0_26px_70px_-34px_rgba(15,23,42,0.26)] ring-1 ring-white/80 backdrop-blur sm:px-[34px] sm:py-[32px]">
