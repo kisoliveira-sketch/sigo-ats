@@ -311,7 +311,7 @@ export function PageShell({
   children: ReactNode;
 }) {
   return (
-    <main className="min-h-screen bg-[#eef3f7] text-slate-900">
+    <main className="app-atc-background relative min-h-screen text-slate-900">
       <div className="mx-auto max-w-7xl p-6 lg:p-8">
         <div className={`overflow-hidden rounded-[1.05rem] border border-slate-200/80 bg-white/96 shadow-[0_24px_50px_-34px_rgba(15,23,42,0.22)] ring-1 ring-white/80 ${compact ? "mb-6" : "mb-8"}`}>
           <div className={`flex items-start justify-between gap-4 ${

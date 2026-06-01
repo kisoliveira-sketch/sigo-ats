@@ -54,6 +54,26 @@ button {
     cursor: pointer;
 }
 
+.app-atc-background {
+    background-color: #e8eef3;
+    background-image:
+        radial-gradient(circle at 14% 18%, rgba(29, 79, 145, 0.08), transparent 24%),
+        radial-gradient(circle at 86% 14%, rgba(29, 79, 145, 0.06), transparent 20%),
+        radial-gradient(circle at 50% 120%, rgba(15, 23, 42, 0.05), transparent 32%),
+        repeating-linear-gradient(0deg, rgba(29, 79, 145, 0.04) 0 1px, transparent 1px 36px),
+        repeating-linear-gradient(90deg, rgba(29, 79, 145, 0.04) 0 1px, transparent 1px 36px);
+}
+
+.app-atc-background::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+        radial-gradient(circle at 18% 76%, transparent 0 92px, rgba(29, 79, 145, 0.055) 92px 94px, transparent 94px 146px, rgba(29, 79, 145, 0.04) 146px 148px, transparent 148px),
+        radial-gradient(circle at 82% 24%, transparent 0 74px, rgba(29, 79, 145, 0.05) 74px 76px, transparent 76px 118px, rgba(29, 79, 145, 0.035) 118px 120px, transparent 120px);
+}
+
 .digital-number {
     font-family: "SFMono-Regular", "Roboto Mono", "Menlo", "Monaco", "Consolas", "Liberation Mono", "Courier New", monospace;
     font-variant-numeric: tabular-nums lining-nums;
