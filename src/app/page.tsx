@@ -1107,7 +1107,7 @@ export default function Home() {
 
   if (booting) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-900">
+      <main className="flex min-h-screen items-center justify-center bg-[#eef3f7] text-slate-900">
         <div className="rounded-[0.9rem] border border-slate-200 bg-white px-6 py-4 shadow-sm">
           A carregar...
         </div>
@@ -1117,7 +1117,7 @@ export default function Home() {
 
   if (profile && !isPasswordRecoveryMode) {
     return (
-      <main className="min-h-screen bg-[#F8FAFB] text-slate-900">
+      <main className="min-h-screen bg-[#eef3f7] text-slate-900">
         <div className="mx-auto max-w-7xl p-5 lg:p-7">
           <header className="overflow-hidden rounded-[1.05rem] border border-slate-200 bg-white shadow-[0_20px_40px_-34px_rgba(15,23,42,0.18)]">
             <div className="flex items-start justify-between gap-4 px-6 py-5">
@@ -1500,13 +1500,13 @@ export default function Home() {
 
   return (
     <main
-      className="relative min-h-screen w-full overflow-hidden bg-[#f7fbff] bg-cover bg-center bg-no-repeat text-slate-900"
+      className="relative min-h-screen w-full overflow-hidden bg-[#edf2f6] bg-cover bg-center bg-no-repeat text-slate-900"
       style={{
         backgroundImage:
           'url("https://dtqajfxkhfarwqzuuepn.supabase.co/storage/v1/object/sign/occurrences-docs/fundo_login.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9iZjJmYzNkZS1kZDQzLTQ5NGYtYjk1MS03NTcyMGZkYmVhYzciLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJvY2N1cnJlbmNlcy1kb2NzL2Z1bmRvX2xvZ2luLnBuZyIsImlhdCI6MTc3NzEwNTEzNSwiZXhwIjo0OTMwNzA1MTM1fQ.Id1a8DIXSqJ8O3AQOsaund-sY4yfRp4kgiuEbq6Cf9A")',
       }}
     >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.1),_rgba(247,251,255,0.2)_42%,_rgba(247,251,255,0.26)_100%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.08),_rgba(237,242,246,0.26)_42%,_rgba(237,242,246,0.34)_100%)]" />
 
       <div className="relative z-10 flex min-h-screen w-full items-center justify-center p-4 sm:p-6">
         <section className="mx-auto w-full max-w-[510px] rounded-[18px] border border-white/80 bg-white/94 px-[26px] py-[28px] shadow-[0_26px_70px_-34px_rgba(15,23,42,0.26)] ring-1 ring-white/80 backdrop-blur sm:px-[34px] sm:py-[32px]">
