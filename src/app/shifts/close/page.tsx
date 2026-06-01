@@ -730,7 +730,7 @@ export default function CloseShiftPage() {
             <div className="text-sm leading-6 text-slate-500">
               Ao encerrar, o turno passa para{" "}
               <span className="font-medium text-slate-700">CLOSED</span> e a
-              sessão será terminada automaticamente.
+              sessão permanece ativa para consulta posterior.
             </div>
 
             <button

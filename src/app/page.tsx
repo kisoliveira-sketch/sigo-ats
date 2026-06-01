@@ -188,14 +188,6 @@ function SystemDot({ tone = "green" }: { tone?: "green" | "slate" | "orange" }) 
   return <span className={`h-2.5 w-2.5 rounded-full ${cls}`} />;
 }
 
-function ChevronRightIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className={dashboardLineIconClass}>
-      <path d="m9 6 6 6-6 6" />
-    </svg>
-  );
-}
-
 function BoltIcon() {
   return (
     <svg viewBox="0 0 24 24" className={dashboardLineIconClass}>
@@ -279,76 +271,88 @@ function QuickAccessCard({
   title,
   description,
   icon,
-  badge,
   href,
   locked = false,
   accent = "slate",
+  primary = false,
 }: {
   title: string;
   description: string;
   icon: ReactNode;
-  badge: string;
   href?: string;
   locked?: boolean;
   accent?: "orange" | "blue" | "slate";
+  primary?: boolean;
 }) {
-  const wrapperClass =
-    "w-full md:w-[calc(50%-0.5rem)] xl:min-w-0 xl:basis-[calc((100%-3rem)/4)]";
+  const wrapperClass = "min-w-0";
   const accentClasses =
-    accent === "orange"
+    locked
       ? {
-          card: "border-orange-200 hover:border-orange-300",
+          card: "cursor-not-allowed border-slate-200 bg-slate-50/90 shadow-[0_12px_24px_-28px_rgba(15,23,42,0.1)]",
+          icon: "border-slate-200 bg-slate-100 text-slate-400",
+          title: "text-slate-700",
+          description: "text-slate-400",
+          lock: "text-slate-400",
+        }
+      : accent === "orange"
+      ? {
+          card: primary
+            ? "border-orange-300/90 bg-gradient-to-br from-[#fff7ee] via-white to-[#fff2e2] shadow-[0_24px_44px_-28px_rgba(242,140,40,0.38)] hover:border-[#f28c28] hover:shadow-[0_28px_52px_-28px_rgba(242,140,40,0.46)]"
+            : "border-orange-200/90 bg-white hover:border-[#f28c28] hover:shadow-[0_22px_42px_-24px_rgba(242,140,40,0.3)]",
           icon: "border-orange-200 bg-orange-50 text-[#f28c28]",
-          badge: "bg-orange-50 text-[#f28c28]",
-          chevron: "group-hover:text-[#f28c28]",
+          title: "text-slate-900",
+          description: "text-slate-600",
+          lock: "text-[#f28c28]",
         }
       : accent === "blue"
       ? {
-          card: "border-slate-200 hover:border-blue-300",
+          card: "border-slate-200/90 bg-white hover:border-[#2a67ba] hover:shadow-[0_22px_42px_-24px_rgba(29,79,145,0.24)]",
           icon: "border-blue-200 bg-[#eef4fb] text-[#1d4f91]",
-          badge: "bg-[#eef4fb] text-[#1d4f91]",
-          chevron: "group-hover:text-[#1d4f91]",
+          title: "text-slate-900",
+          description: "text-slate-600",
+          lock: "text-[#1d4f91]",
         }
       : {
-          card: "border-slate-200 hover:border-slate-300",
+          card: "border-slate-200/90 bg-white hover:border-slate-300 hover:shadow-[0_20px_36px_-26px_rgba(15,23,42,0.18)]",
           icon: "border-slate-200 bg-slate-50 text-slate-600",
-          badge: "bg-slate-100 text-slate-600",
-          chevron: "group-hover:text-slate-700",
+          title: "text-slate-900",
+          description: "text-slate-600",
+          lock: "text-slate-500",
         };
 
   const content = (
     <div
-      className={`group flex h-full min-h-[118px] items-stretch justify-between gap-2 rounded-[0.95rem] border bg-white px-4 py-2.5 shadow-[0_14px_28px_-26px_rgba(15,23,42,0.14)] transition hover:-translate-y-0.5 ${accentClasses.card}`}
+      className={`group flex h-full min-h-[108px] flex-col rounded-[1rem] border px-3 py-2 ring-1 ring-white/80 transition duration-200 ${locked ? "" : "hover:-translate-y-1"} ${accentClasses.card}`}
     >
-      <div className="flex min-w-0 flex-1 items-start gap-2.5">
+      <div className="flex min-w-0 items-start gap-1.5">
         <span
-          className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-[0.75rem] border ${accentClasses.icon}`}
+          className={`mt-0.5 flex h-8.5 w-8.5 shrink-0 items-center justify-center rounded-[0.72rem] border shadow-[0_12px_24px_-20px_rgba(15,23,42,0.22)] ${accentClasses.icon}`}
         >
           {icon}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="whitespace-nowrap text-[15px] font-semibold leading-6 text-slate-900">
+          <p className={`text-[15px] font-semibold leading-5 ${accentClasses.title}`}>
             {title}
           </p>
-          <p className="mt-1 text-[12px] leading-[1.2rem] text-slate-600">
+          <p className={`mt-px max-w-[11.5rem] text-[12px] leading-[1.05rem] ${accentClasses.description}`}>
             {description}
           </p>
         </div>
       </div>
 
-      <div className="flex min-w-[56px] shrink-0 flex-col items-end justify-end pl-0.5">
-        <div className="flex items-center gap-2">
-          <span
-            className={`rounded-[0.65rem] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] ${accentClasses.badge}`}
-          >
-            {badge}
+      <div className="mt-auto flex items-end justify-end gap-1.5 pt-0.5">
+        {locked ? (
+          <>
+            <span className="text-[11px] font-medium text-slate-400">Requer turno aberto</span>
+            <span className={`flex h-7.5 w-7.5 items-center justify-center rounded-[0.68rem] border border-slate-200 bg-white ${accentClasses.lock}`}>
+              <LockIcon />
+            </span>
+          </>
+        ) : (
+          <span className={`text-slate-300 transition duration-200 group-hover:translate-x-0.5 ${accentClasses.lock}`}>
+            <ArrowRightIcon />
           </span>
-          <span
-            className={`text-slate-300 transition ${locked ? "" : accentClasses.chevron}`}
-          >
-            {locked ? <LockIcon /> : <ChevronRightIcon />}
-          </span>
-        </div>
+        )}
       </div>
     </div>
   );
@@ -849,12 +853,8 @@ export default function Home() {
 
   const quickAccessTurnActionLabel = hasOpenShift ? "Encerrar turno" : "Abrir turno";
   const quickAccessTurnActionDescription = hasOpenShift
-    ? requiresValidationForClose && !isOpenShiftValidated
-      ? "Disponível após a validação final do registo ATS."
-      : canCloseCurrentShift
-      ? "Encerrar o turno operacional ativo."
-      : "Disponível apenas para quem abriu o turno."
-    : "Iniciar um novo turno operacional.";
+    ? "Só quem abriu o turno o pode encerrar."
+    : "Iniciar novo turno";
   const shiftComposition = useMemo(
     () => extractCompositionLines(openShift?.opening_notes),
     [openShift?.opening_notes],
@@ -883,6 +883,7 @@ export default function Home() {
             : `${log.user_name} em posição não indicada`,
         )
         .join(" · ");
+  const hasNoActivePosition = !hasOpenShift || activePositionLogs.length === 0;
   const primaryActionHref = !hasOpenShift
     ? "/shifts/open"
     : !hasAnyPositionLogs
@@ -1168,11 +1169,17 @@ export default function Home() {
                     >
                       {operationalStatus}
                     </h2>
-                    <div className="mt-4 inline-flex items-center gap-2 text-[14px] text-slate-600">
-                      <span className="flex h-[18px] w-[18px] items-center justify-center">
+                    <div
+                      className={`mt-4 flex max-w-[44rem] items-start gap-3 rounded-[0.9rem] border px-3.5 py-3 text-[14px] shadow-[0_12px_24px_-22px_rgba(15,23,42,0.18)] ${
+                        hasNoActivePosition
+                          ? "border-amber-200 bg-amber-50/85 text-amber-800"
+                          : "border-emerald-200 bg-emerald-50/85 text-emerald-800"
+                      }`}
+                    >
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[0.75rem] border border-current/15 bg-white/70">
                         <UsersIcon />
                       </span>
-                      <span>
+                      <span className="pt-0.5 font-medium leading-6">
                         {activePositionStatus}
                       </span>
                     </div>
@@ -1299,7 +1306,7 @@ export default function Home() {
                   </h3>
                 </div>
 
-                <div className="mt-5 flex flex-wrap gap-4 xl:flex-nowrap">
+                <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                   {hasOpenShift &&
                   (!canCloseCurrentShift ||
                     (requiresValidationForClose && !isOpenShiftValidated)) ? (
@@ -1307,26 +1314,25 @@ export default function Home() {
                       title={quickAccessTurnActionLabel}
                       description={quickAccessTurnActionDescription}
                       icon={<LogoutIcon />}
-                      badge="Fechar"
                       locked
-                      accent="slate"
+                      accent="orange"
+                      primary
                     />
                   ) : (
                     <QuickAccessCard
                       title={quickAccessTurnActionLabel}
                       description={quickAccessTurnActionDescription}
                       icon={hasOpenShift ? <LogoutIcon /> : <LoginIcon />}
-                      badge={hasOpenShift ? "Fechar" : "Abrir"}
                       href={hasOpenShift ? "/shifts/close" : "/shifts/open"}
                       accent="orange"
+                      primary
                     />
                   )}
 
                   <QuickAccessCard
                     title="Registos ATS"
-                    description="Consultar registos de ocorrências ATS."
+                    description="Consultar ocorrências"
                     icon={<FileIcon />}
-                    badge="Abrir"
                     href="/occurrences"
                     accent="blue"
                   />
@@ -1334,31 +1340,38 @@ export default function Home() {
                   {hasOpenShift ? (
                     <QuickAccessCard
                       title="Logs operacionais"
-                      description="Registar entrada e saída na posição operacional."
+                      description="Registar posição"
                       icon={<UsersIcon />}
-                      badge="Abrir"
                       href="/shifts/logs"
                       accent="blue"
                     />
                   ) : (
                     <QuickAccessCard
                       title="Logs operacionais"
-                      description="Disponível após abrir turno."
+                      description="Requer turno aberto"
                       icon={<UsersIcon />}
-                      badge="Abrir"
                       locked
                       accent="slate"
                     />
                   )}
 
-                  <QuickAccessCard
-                    title="Relatórios"
-                    description="Aceder a relatórios e estatísticas."
-                    icon={<ChartIcon />}
-                    badge="Abrir"
-                    locked
-                    accent="slate"
-                  />
+                  {hasOpenShift ? (
+                    <QuickAccessCard
+                      title="Relatórios"
+                      description="Consultar relatório do turno"
+                      icon={<ChartIcon />}
+                      href={`/occurrences/${openShift?.id ?? ""}`}
+                      accent="blue"
+                    />
+                  ) : (
+                    <QuickAccessCard
+                      title="Relatórios"
+                      description="Requer turno aberto"
+                      icon={<ChartIcon />}
+                      locked
+                      accent="slate"
+                    />
+                  )}
                 </div>
               </section>
 
