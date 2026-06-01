@@ -289,6 +289,25 @@ export function ActionTile({
   );
 }
 
+export function AppFooter({ className = "" }: { className?: string }) {
+  return (
+    <footer className={`px-1 py-2 ${className}`.trim()}>
+      <div className="flex flex-col items-center justify-center gap-1 text-center sm:flex-row sm:gap-1.5 sm:text-left">
+        <Image
+          src="/kzo-logo.svg"
+          alt="KZO - Design & Comunicação"
+          width={260}
+          height={84}
+          className="h-14 w-auto object-contain sm:h-16"
+        />
+        <p className="text-[12px] leading-5 text-slate-500 sm:-ml-1">
+          © KZO - Design & Comunicação 2026 - todos os direitos reservados.
+        </p>
+      </div>
+    </footer>
+  );
+}
+
 export function PageShell({
   badge,
   title,
@@ -362,6 +381,8 @@ export function PageShell({
         </div>
 
         {children}
+
+        <AppFooter className="mt-3" />
       </div>
     </main>
   );
