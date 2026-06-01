@@ -9,8 +9,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "SIRO-ATS",
-  description: "Sistema Integrado de Registo de Ocorrências ATS",
+  title: "SIGO-ATS",
+  description: "Sistema Integrado de Gestão Operacional - ATS",
 };
 
 export default function RootLayout({
