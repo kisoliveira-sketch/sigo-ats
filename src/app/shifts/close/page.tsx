@@ -77,6 +77,7 @@ export default function CloseShiftPage() {
   const [positionLogs, setPositionLogs] = useState<PositionLog[]>([]);
   const [userNameMap, setUserNameMap] = useState<Record<string, string>>({});
   const [hasActivePositionLog, setHasActivePositionLog] = useState(false);
+  const [activePositionLogCount, setActivePositionLogCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [closing, setClosing] = useState(false);
   const [message, setMessage] = useState("");
@@ -89,6 +90,10 @@ export default function CloseShiftPage() {
     [occurrences],
   );
   const requiresValidationBeforeClose = occurrences.length > 0;
+  const activePositionLogMessage =
+    activePositionLogCount > 1
+      ? `Existem ${activePositionLogCount} CTA ainda registados na posição operacional. Regista as saídas antes de encerrar o turno.`
+      : "Existe um CTA ainda registado na posição operacional. Regista a saída antes de encerrar o turno.";
 
   useEffect(() => {
     let active = true;
@@ -234,6 +239,7 @@ export default function CloseShiftPage() {
           return;
         }
 
+        setActivePositionLogCount(activeLogCount ?? 0);
         setHasActivePositionLog((activeLogCount ?? 0) > 0);
         const logs = (positionLogsData as PositionLog[]) || [];
         setPositionLogs(logs);
@@ -283,7 +289,7 @@ export default function CloseShiftPage() {
     }
 
     if (hasActivePositionLog) {
-      setMessage("Existe um CTA ainda registado na posição operacional. Regista a saída antes de encerrar o turno.");
+      setMessage(activePositionLogMessage);
       setMessageType("error");
       return;
     }
@@ -451,7 +457,15 @@ export default function CloseShiftPage() {
 
           {hasActivePositionLog && (
             <div className="rounded-[0.9rem] border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
-              Existe um CTA ainda registado na posição operacional. Regista a saída em <span className="font-semibold">Logs operacionais</span> antes do encerramento do turno.
+              {activePositionLogCount > 1 ? (
+                <>
+                  Existem <span className="font-semibold">{activePositionLogCount} CTA</span> ainda registados na posição operacional. Regista as saídas em <span className="font-semibold">Logs operacionais</span> antes do encerramento do turno.
+                </>
+              ) : (
+                <>
+                  Existe um CTA ainda registado na posição operacional. Regista a saída em <span className="font-semibold">Logs operacionais</span> antes do encerramento do turno.
+                </>
+              )}
             </div>
           )}
 
