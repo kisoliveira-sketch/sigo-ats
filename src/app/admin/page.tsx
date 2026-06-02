@@ -143,6 +143,27 @@ type AdminDashboard = {
 
 type UserSortKey = "user" | "unit" | "role" | "status";
 type UserSortDirection = "asc" | "desc";
+type PendingAdminAction =
+  | {
+      kind: "create-user";
+      title: string;
+      description: string;
+      confirmLabel: string;
+    }
+  | {
+      kind: "delete-user";
+      title: string;
+      description: string;
+      confirmLabel: string;
+      userId: string;
+      userLabel: string;
+    }
+  | {
+      kind: "reset-records";
+      title: string;
+      description: string;
+      confirmLabel: string;
+    };
 
 const ADMIN_USERS_PAGE_SIZE = 20;
 
@@ -303,6 +324,9 @@ export default function AdminPage() {
   const [messageTone, setMessageTone] = useState<"error" | "success" | "info">(
     "info",
   );
+  const [showSecurityNotice, setShowSecurityNotice] = useState(true);
+  const [pendingAction, setPendingAction] = useState<PendingAdminAction | null>(null);
+  const [actionCountdown, setActionCountdown] = useState(20);
 
   const systemStats = useMemo(
     () => [
@@ -423,6 +447,24 @@ export default function AdminPage() {
     if (userSortKey !== key) return "↕";
     return userSortDirection === "asc" ? "↑" : "↓";
   };
+
+  useEffect(() => {
+    if (!pendingAction) return;
+
+    const timer = window.setInterval(() => {
+      setActionCountdown((current) => {
+        if (current <= 1) {
+          window.clearInterval(timer);
+          return 0;
+        }
+        return current - 1;
+      });
+    }, 1000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [pendingAction]);
 
   const totalUserPages = Math.max(
     1,
@@ -564,7 +606,7 @@ export default function AdminPage() {
     }
   };
 
-  const handleReset = async () => {
+  const executeReset = async () => {
     if (!confirmReset) {
       setMessage("Confirme a operação antes de limpar os registos.");
       setMessageTone("error");
@@ -640,6 +682,31 @@ export default function AdminPage() {
     setResetting(false);
   };
 
+  const handleReset = () => {
+    if (!confirmReset) {
+      setMessage("Confirme a operação antes de limpar os registos.");
+      setMessageTone("error");
+      return;
+    }
+
+    if (!dateFrom && !dateTo && !atsUnitId) {
+      setMessage(
+        "Indique pelo menos uma data ou um órgão ATS para filtrar os registos a apagar.",
+      );
+      setMessageTone("error");
+      return;
+    }
+
+    setActionCountdown(20);
+    setPendingAction({
+      kind: "reset-records",
+      title: "Confirmar limpeza de registos operacionais",
+      description:
+        "Esta ação apaga turnos, ocorrências e logs de posição reais no Supabase, dentro do filtro e da seleção atual. Revise com cuidado antes de confirmar.",
+      confirmLabel: "Confirmar limpeza",
+    });
+  };
+
   const toggleShiftSelection = (shiftId: number) => {
     setSelectedShiftIds((current) =>
       current.includes(shiftId)
@@ -657,7 +724,7 @@ export default function AdminPage() {
     setSelectedShiftIds(previewShiftIds);
   };
 
-  const handleCreateUser = async () => {
+  const executeCreateUser = async () => {
     if (!newUserFullName || !newUserEmail || !newUserPassword || !newUserRole || !newUserUnitId) {
       setMessage("Preencha nome, email, palavra-passe, role e órgão ATS.");
       setMessageTone("error");
@@ -714,13 +781,24 @@ export default function AdminPage() {
     setUserSaving(false);
   };
 
-  const handleDeleteUser = async (userId: string, userLabel: string) => {
-    const confirmed = window.confirm(
-      `Confirma que pretende apagar o utilizador ${userLabel}? Esta ação remove o acesso ao sistema.`,
-    );
+  const handleCreateUser = () => {
+    if (!newUserFullName || !newUserEmail || !newUserPassword || !newUserRole || !newUserUnitId) {
+      setMessage("Preencha nome, email, palavra-passe, role e órgão ATS.");
+      setMessageTone("error");
+      return;
+    }
 
-    if (!confirmed) return;
+    setActionCountdown(20);
+    setPendingAction({
+      kind: "create-user",
+      title: "Confirmar criação de utilizador",
+      description:
+        "Vai criar um novo acesso no Supabase Auth e o respetivo profile operacional. Confirme apenas se os dados e o órgão ATS estiverem corretos.",
+      confirmLabel: "Criar utilizador",
+    });
+  };
 
+  const executeDeleteUser = async (userId: string) => {
     const token = await getSessionToken().catch(() => null);
     if (!token) {
       setMessage("Sessão inválida. Entre novamente para continuar.");
@@ -760,6 +838,37 @@ export default function AdminPage() {
     setDeletingUserId(null);
   };
 
+  const handleDeleteUser = (userId: string, userLabel: string) => {
+    setActionCountdown(20);
+    setPendingAction({
+      kind: "delete-user",
+      title: "Confirmar remoção de utilizador",
+      description: `Vai remover o utilizador ${userLabel} do Auth e do profile operacional. Esta ação elimina o acesso ao sistema e deve ser feita com extremo cuidado.`,
+      confirmLabel: "Apagar utilizador",
+      userId,
+      userLabel,
+    });
+  };
+
+  const handleConfirmPendingAction = async () => {
+    if (!pendingAction || actionCountdown > 0) return;
+
+    const action = pendingAction;
+    setPendingAction(null);
+
+    if (action.kind === "create-user") {
+      await executeCreateUser();
+      return;
+    }
+
+    if (action.kind === "reset-records") {
+      await executeReset();
+      return;
+    }
+
+    await executeDeleteUser(action.userId);
+  };
+
   return (
     <PageShell
       badge="Administração"
@@ -775,6 +884,81 @@ export default function AdminPage() {
       }
     >
       <div className="space-y-6">
+        {showSecurityNotice ? (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/70 px-4">
+            <div className="w-full max-w-2xl rounded-[1.2rem] border border-amber-200 bg-white p-6 shadow-[0_30px_80px_-30px_rgba(15,23,42,0.5)] dark:border-amber-300/20 dark:bg-[rgba(16,25,41,0.96)]">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-600 dark:text-amber-300">
+                Aviso de segurança
+              </div>
+              <h2 className="mt-2 text-2xl font-bold text-slate-950 dark:text-slate-50">
+                Painel administrativo com acesso a dados reais
+              </h2>
+              <div className="mt-4 space-y-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                <p>
+                  Este painel permite criar e remover utilizadores, consultar o estado global
+                  do sistema e apagar registos operacionais reais no Supabase.
+                </p>
+                <p>
+                  Qualquer alteração pode afetar turnos em curso, registos operacionais
+                  ativos, histórico útil ou retirar acesso a utilizadores. Utilize apenas
+                  quando tiver plena certeza do impacto da ação.
+                </p>
+                <p>
+                  Proceda com especial cuidado nas áreas de gestão de utilizadores e gestão de
+                  registos. Em caso de dúvida, não prossiga sem confirmar primeiro o impacto
+                  da ação.
+                </p>
+              </div>
+              <div className="mt-6 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowSecurityNotice(false)}
+                  className="inline-flex items-center justify-center rounded-[0.85rem] border border-amber-500 bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white transition duration-200 hover:border-amber-600 hover:bg-amber-600"
+                >
+                  Compreendo os riscos
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {pendingAction ? (
+          <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/75 px-4">
+            <div className="w-full max-w-xl rounded-[1.2rem] border border-red-200 bg-white p-6 shadow-[0_30px_80px_-30px_rgba(15,23,42,0.55)] dark:border-red-300/20 dark:bg-[rgba(16,25,41,0.98)]">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-red-600 dark:text-red-300">
+                Confirmação reforçada
+              </div>
+              <h2 className="mt-2 text-xl font-bold text-slate-950 dark:text-slate-50">
+                {pendingAction.title}
+              </h2>
+              <p className="mt-4 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                {pendingAction.description}
+              </p>
+              <div className="mt-5 rounded-[0.9rem] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-300/20 dark:bg-amber-500/10 dark:text-amber-200">
+                O botão de confirmação fica disponível em <strong>{actionCountdown}</strong>{" "}
+                segundo(s).
+              </div>
+              <div className="mt-6 flex flex-wrap justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setPendingAction(null)}
+                  className="inline-flex items-center justify-center rounded-[0.85rem] border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition duration-200 hover:bg-slate-50 dark:border-slate-600 dark:bg-transparent dark:text-slate-200 dark:hover:bg-white/5"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmPendingAction}
+                  disabled={actionCountdown > 0}
+                  className="inline-flex items-center justify-center rounded-[0.85rem] border border-red-600 bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition duration-200 hover:border-red-700 hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {pendingAction.confirmLabel}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         {message ? (
           <div
             className={`rounded-[0.9rem] border px-4 py-4 text-sm ${

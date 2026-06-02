@@ -66,9 +66,7 @@ button {
         radial-gradient(circle at 14% 18%, rgba(29, 79, 145, 0.16), transparent 26%),
         radial-gradient(circle at 86% 14%, rgba(29, 79, 145, 0.125), transparent 22%),
         radial-gradient(circle at 50% 120%, rgba(15, 23, 42, 0.09), transparent 34%),
-        linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, transparent 24%, transparent 76%, rgba(29, 79, 145, 0.055) 100%),
-        repeating-linear-gradient(0deg, rgba(29, 79, 145, 0.072) 0 1px, transparent 1px 34px),
-        repeating-linear-gradient(90deg, rgba(29, 79, 145, 0.072) 0 1px, transparent 1px 34px);
+        linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, transparent 24%, transparent 76%, rgba(29, 79, 145, 0.055) 100%);
 }
 
 .app-atc-background::before {
@@ -81,6 +79,23 @@ button {
         linear-gradient(120deg, transparent 0 46%, rgba(29, 79, 145, 0.062) 46% 46.25%, transparent 46.25% 100%),
         linear-gradient(35deg, transparent 0 58%, rgba(255, 255, 255, 0.12) 58% 58.2%, transparent 58.2% 100%);
     opacity: 1;
+}
+
+.app-atc-background::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.2) 0%, rgba(226, 233, 239, 0.08) 100%),
+        url("/atc-sal-map.png");
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+    filter: saturate(0.9) brightness(1.02) contrast(0.9);
+    opacity: 0.12;
+    mix-blend-mode: multiply;
 }
 
 .app-atc-background > * {
@@ -118,9 +133,7 @@ html[data-sigo-theme="dark"] body {
         radial-gradient(circle at 14% 18%, rgba(125, 183, 255, 0.15), transparent 26%),
         radial-gradient(circle at 86% 14%, rgba(125, 183, 255, 0.11), transparent 22%),
         radial-gradient(circle at 50% 120%, rgba(15, 23, 42, 0.22), transparent 34%),
-        linear-gradient(135deg, rgba(148, 197, 255, 0.06) 0%, transparent 24%, transparent 76%, rgba(125, 183, 255, 0.05) 100%),
-        repeating-linear-gradient(0deg, rgba(125, 183, 255, 0.08) 0 1px, transparent 1px 34px),
-        repeating-linear-gradient(90deg, rgba(125, 183, 255, 0.08) 0 1px, transparent 1px 34px);
+        linear-gradient(135deg, rgba(148, 197, 255, 0.06) 0%, transparent 24%, transparent 76%, rgba(125, 183, 255, 0.05) 100%);
     background-size:
         auto,
         auto,
@@ -130,12 +143,8 @@ html[data-sigo-theme="dark"] body {
         auto,
         auto,
         auto,
-        auto,
-        34px 34px,
-        34px 34px;
+        auto;
     background-position:
-        center,
-        center,
         center,
         center,
         center,
@@ -154,9 +163,7 @@ html[data-sigo-theme="dark"] body {
         no-repeat,
         no-repeat,
         no-repeat,
-        no-repeat,
-        repeat,
-        repeat;
+        no-repeat;
     background-blend-mode:
         normal,
         screen,
@@ -166,8 +173,6 @@ html[data-sigo-theme="dark"] body {
         screen,
         screen,
         screen,
-        normal,
-        normal,
         normal;
 }
 
