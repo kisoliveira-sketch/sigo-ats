@@ -259,6 +259,14 @@ function SearchIcon() {
   );
 }
 
+function SortIndicator({ value }: { value: string }) {
+  return (
+    <span className="inline-flex h-4 w-4 items-center justify-center rounded-[0.32rem] border border-slate-200 bg-slate-50 text-[10px] font-bold leading-none text-slate-400">
+      {value}
+    </span>
+  );
+}
+
 function getShiftUnitLabel(shift: PreviewShift) {
   const unit = Array.isArray(shift.ats_units) ? shift.ats_units[0] : shift.ats_units;
   if (!unit) return "Órgão não identificado";
@@ -1242,34 +1250,34 @@ export default function AdminPage() {
               <button
                 type="button"
                 onClick={() => toggleUserSort("user")}
-                className="inline-flex items-center gap-1 text-left transition hover:text-slate-700"
+                className="inline-flex items-center gap-1.5 text-left transition hover:text-slate-700"
               >
                 <span>Utilizador</span>
-                <span className="text-[10px]">{getUserSortIndicator("user")}</span>
+                <SortIndicator value={getUserSortIndicator("user")} />
               </button>
               <button
                 type="button"
                 onClick={() => toggleUserSort("unit")}
-                className="inline-flex items-center gap-1 text-left transition hover:text-slate-700"
+                className="inline-flex items-center gap-1.5 text-left transition hover:text-slate-700"
               >
                 <span>Órgão ATS</span>
-                <span className="text-[10px]">{getUserSortIndicator("unit")}</span>
+                <SortIndicator value={getUserSortIndicator("unit")} />
               </button>
               <button
                 type="button"
                 onClick={() => toggleUserSort("role")}
-                className="inline-flex items-center gap-1 text-left transition hover:text-slate-700"
+                className="inline-flex items-center gap-1.5 text-left transition hover:text-slate-700"
               >
                 <span>Role</span>
-                <span className="text-[10px]">{getUserSortIndicator("role")}</span>
+                <SortIndicator value={getUserSortIndicator("role")} />
               </button>
               <button
                 type="button"
                 onClick={() => toggleUserSort("status")}
-                className="inline-flex items-center gap-1 text-left transition hover:text-slate-700"
+                className="inline-flex items-center gap-1.5 text-left transition hover:text-slate-700"
               >
                 <span>Estado</span>
-                <span className="text-[10px]">{getUserSortIndicator("status")}</span>
+                <SortIndicator value={getUserSortIndicator("status")} />
               </button>
               <span className="text-right">Ações</span>
             </div>
