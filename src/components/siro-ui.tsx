@@ -60,7 +60,7 @@ export function appTextareaClass() {
 }
 
 export function appCheckboxClass() {
-  return "mt-0.5 h-4 w-4 rounded border border-slate-300/90 bg-white text-[#1d4f91] shadow-[0_8px_18px_-16px_rgba(15,23,42,0.22)] focus:ring-2 focus:ring-[#2a67ba]/20";
+  return "mt-0.5 h-4 w-4 appearance-none rounded-[0.28rem] border border-slate-500 bg-white text-[#1d4f91] shadow-none outline-none ring-0 transition focus:border-[#2a67ba] focus:ring-2 focus:ring-[#2a67ba]/20";
 }
 
 export function appLabelClass() {
@@ -314,6 +314,7 @@ export function PageShell({
   subtitle,
   heroIcon,
   actions,
+  footerActions,
   compact = false,
   heroThin = false,
   heroTighter = false,
@@ -324,6 +325,7 @@ export function PageShell({
   subtitle?: string;
   heroIcon?: ReactNode;
   actions?: ReactNode;
+  footerActions?: ReactNode;
   compact?: boolean;
   heroThin?: boolean;
   heroTighter?: boolean;
@@ -368,14 +370,21 @@ export function PageShell({
           </div>
 
           <div className="border-t border-slate-200 bg-white px-5 py-3">
-            <div className="inline-flex items-center gap-3 text-[#1d4f91]">
-              <span className="flex h-9 w-9 items-center justify-center rounded-[0.8rem] bg-[#eef4fb]">
-                {heroIcon ?? <HomeIcon />}
-              </span>
-              <div>
-                <h1 className="text-[15px] font-semibold">{title || badge}</h1>
-                {subtitle ? <p className="mt-0.5 text-[13px] text-slate-500">{subtitle}</p> : null}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="inline-flex items-center gap-3 text-[#1d4f91]">
+                <span className="flex h-9 w-9 items-center justify-center rounded-[0.8rem] bg-[#eef4fb]">
+                  {heroIcon ?? <HomeIcon />}
+                </span>
+                <div>
+                  <h1 className="text-[15px] font-semibold">{title || badge}</h1>
+                  {subtitle ? <p className="mt-0.5 text-[13px] text-slate-500">{subtitle}</p> : null}
+                </div>
               </div>
+              {footerActions ? (
+                <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                  {footerActions}
+                </div>
+              ) : null}
             </div>
           </div>
         </div>

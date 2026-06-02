@@ -1284,24 +1284,27 @@ export default function Home() {
                   Ajuda
                 </Link>
 
+              </div>
+            </div>
+
+            <div className="border-t border-slate-200 bg-white px-6 py-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="inline-flex items-center gap-3 text-[#1d4f91]">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-[0.8rem] bg-[#eef4fb]">
+                    <HomeIcon />
+                  </span>
+                  <span className="text-[15px] font-semibold">Painel principal</span>
+                </div>
+
                 {canAccessAdmin ? (
                   <Link
                     href="/admin"
-                    className="inline-flex min-w-[132px] items-center justify-center gap-2 rounded-[0.8rem] border border-slate-200 bg-white px-4 py-2.5 text-[14px] font-semibold text-[#1d4f91] shadow-[0_12px_22px_-18px_rgba(15,23,42,0.14)] transition duration-200 hover:-translate-y-0.5 hover:border-[#2a67ba] hover:bg-[#eef4fb] hover:text-[#1d4f91] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2a67ba]/35"
+                    className="inline-flex min-w-[148px] items-center justify-center gap-2 self-start rounded-[0.8rem] border border-[#1d4f91] bg-[#1d4f91] px-4 py-2.5 text-[14px] font-semibold !text-white visited:!text-white shadow-[0_16px_28px_-18px_rgba(29,79,145,0.45)] transition duration-200 hover:-translate-y-0.5 hover:border-[#f28c28] hover:bg-[#f28c28] hover:!text-white hover:shadow-[0_20px_34px_-18px_rgba(242,140,40,0.36)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2a67ba]/35 sm:self-auto"
                   >
                     <GridIcon />
                     Administração
                   </Link>
                 ) : null}
-              </div>
-            </div>
-
-            <div className="border-t border-slate-200 bg-white px-6 py-3">
-              <div className="inline-flex items-center gap-3 text-[#1d4f91]">
-                <span className="flex h-9 w-9 items-center justify-center rounded-[0.8rem] bg-[#eef4fb]">
-                  <HomeIcon />
-                </span>
-                <span className="text-[15px] font-semibold">Painel principal</span>
               </div>
             </div>
           </header>
@@ -1439,11 +1442,15 @@ export default function Home() {
 
                 <Link
                   href={primaryActionHref}
-                  className={`dashboard-primary-action-btn ${appButtonClass("primary")} relative translate-y-[7.5px] mt-auto inline-flex w-full items-center justify-center gap-3 pt-14 py-[14px] text-center text-[15px] hover:border-[#f28c28] hover:bg-[#f28c28] hover:shadow-[0_22px_38px_-18px_rgba(242,140,40,0.52)]`}
+                  className={`dashboard-primary-action-btn ${appButtonClass("primary")} mt-auto inline-flex min-h-[92px] w-full items-center justify-center px-6 py-5 text-center text-[15px] hover:border-[#f28c28] hover:bg-[#f28c28] hover:shadow-[0_22px_38px_-18px_rgba(242,140,40,0.52)]`}
                 >
-                  <span className="relative -top-3 flex items-center justify-center gap-3">
-                    <PlayTriangleIcon />
-                    <span>{primaryActionLabel}</span>
+                  <span className="flex items-center justify-center gap-3">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/14">
+                      <PlayTriangleIcon />
+                    </span>
+                    <span className="text-[16px] font-semibold tracking-[-0.01em]">
+                      {primaryActionLabel}
+                    </span>
                   </span>
                 </Link>
               </section>

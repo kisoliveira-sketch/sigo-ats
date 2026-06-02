@@ -6,6 +6,7 @@ import { getFriendlyErrorMessage } from "@/lib/friendly-errors";
 import { supabase } from "@/lib/supabase";
 import { formatUtcDateTime } from "@/lib/time";
 import {
+  appCheckboxClass,
   heroActionClass,
   InfoIcon,
   PageShell,
@@ -877,7 +878,7 @@ export default function AdminPage() {
       heroIcon={<DatabaseIcon />}
       compact
       heroThin
-      actions={
+      footerActions={
         <Link href="/" className={heroActionClass()}>
           Painel principal
         </Link>
@@ -1547,7 +1548,7 @@ export default function AdminPage() {
                         type="checkbox"
                         checked={selectedShiftIds.includes(shift.id)}
                         onChange={() => toggleShiftSelection(shift.id)}
-                        className="mt-0.5 h-4 w-4 rounded border border-slate-300 md:mt-0"
+                        className={`${appCheckboxClass()} md:mt-0`}
                       />
                       <span className="flex flex-col gap-1 md:flex-row md:items-center md:gap-5">
                         <span className="font-medium text-slate-900">
@@ -1572,7 +1573,7 @@ export default function AdminPage() {
               type="checkbox"
               checked={confirmReset}
               onChange={(e) => setConfirmReset(e.target.checked)}
-              className="mt-0.5 h-4 w-4 rounded border border-slate-300"
+              className={appCheckboxClass()}
             />
             <span>
               Confirmo que pretendo apagar os registos operacionais selecionados.
