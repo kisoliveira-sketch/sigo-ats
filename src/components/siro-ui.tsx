@@ -60,7 +60,7 @@ export function appTextareaClass() {
 }
 
 export function appCheckboxClass() {
-  return "mt-0.5 h-4 w-4 appearance-none rounded-[0.28rem] border border-slate-500 bg-white text-[#1d4f91] shadow-none outline-none ring-0 transition focus:border-[#2a67ba] focus:ring-2 focus:ring-[#2a67ba]/20";
+  return "mt-0.5 h-4 w-4 rounded-[0.28rem] border border-slate-500 bg-white accent-[#1d4f91] shadow-none outline-none ring-0 transition focus:border-[#2a67ba] focus:ring-2 focus:ring-[#2a67ba]/20 disabled:opacity-50";
 }
 
 export function appLabelClass() {
