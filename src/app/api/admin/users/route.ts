@@ -159,3 +159,104 @@ export async function DELETE(request: NextRequest) {
     );
   }
 }
+
+export async function PATCH(request: NextRequest) {
+  const auth = await getAuthorizedAdminContext(request, ["ADMIN"]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error.message }, { status: auth.error.status });
+  }
+
+  try {
+    const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+    const userId = typeof body.userId === "string" ? body.userId.trim() : "";
+    const fullName =
+      typeof body.fullName === "string" ? body.fullName.trim() : "";
+    const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+    const role = typeof body.role === "string" ? body.role.trim() : "";
+    const atsUnitId =
+      typeof body.atsUnitId === "number"
+        ? body.atsUnitId
+        : typeof body.atsUnitId === "string" && body.atsUnitId.trim()
+          ? Number(body.atsUnitId)
+          : null;
+
+    if (!userId || !fullName || !email || !role) {
+      return NextResponse.json(
+        { error: "Utilizador, nome, email e role são obrigatórios." },
+        { status: 400 },
+      );
+    }
+
+    if (!Number.isInteger(atsUnitId)) {
+      return NextResponse.json(
+        { error: "Selecione um órgão ATS válido." },
+        { status: 400 },
+      );
+    }
+
+    const { data: existingProfile } = await auth.adminClient
+      .from("profiles")
+      .select("id")
+      .eq("email", email)
+      .neq("id", userId)
+      .maybeSingle();
+
+    if (existingProfile) {
+      return NextResponse.json(
+        { error: "Já existe outro utilizador com esse email." },
+        { status: 409 },
+      );
+    }
+
+    const { error: authUpdateError } = await auth.adminClient.auth.admin.updateUserById(
+      userId,
+      {
+        email,
+        user_metadata: {
+          full_name: fullName,
+        },
+      },
+    );
+
+    if (authUpdateError) {
+      return NextResponse.json(
+        { error: authUpdateError.message || "Não foi possível atualizar o Auth user." },
+        { status: 400 },
+      );
+    }
+
+    const { error: profileError } = await auth.adminClient
+      .from("profiles")
+      .update({
+        full_name: fullName,
+        email,
+        role,
+        ats_unit_id: atsUnitId,
+      })
+      .eq("id", userId);
+
+    if (profileError) {
+      return NextResponse.json(
+        { error: "Auth atualizado, mas falhou a atualização do perfil." },
+        { status: 500 },
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Utilizador atualizado com sucesso.",
+      user: {
+        id: userId,
+        email,
+        full_name: fullName,
+        role,
+        ats_unit_id: atsUnitId,
+      },
+    });
+  } catch {
+    return NextResponse.json(
+      { error: "Não foi possível atualizar o utilizador." },
+      { status: 500 },
+    );
+  }
+}

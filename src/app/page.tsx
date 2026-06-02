@@ -186,16 +186,6 @@ function isUserInShiftComposition(
 const dashboardLineIconClass =
   "h-5 w-5 fill-none stroke-current stroke-[1.9] [stroke-linecap:round] [stroke-linejoin:round]";
 
-function HomeIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className={dashboardLineIconClass}>
-      <path d="M4 10.5 12 4l8 6.5" />
-      <path d="M6.5 9.5V20h11V9.5" />
-      <path d="M9.5 20v-6h5v6" />
-    </svg>
-  );
-}
-
 function ClockIcon() {
   return (
     <svg viewBox="0 0 24 24" className={dashboardLineIconClass}>
@@ -1289,11 +1279,10 @@ export default function Home() {
 
             <div className="border-t border-slate-200 bg-white px-6 py-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="inline-flex items-center gap-3 text-[#1d4f91]">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-[0.8rem] bg-[#eef4fb]">
-                    <HomeIcon />
+                <div className="text-[#1d4f91]">
+                  <span className="text-[15px] font-semibold uppercase tracking-[0.12em]">
+                    Painel principal
                   </span>
-                  <span className="text-[15px] font-semibold">Painel principal</span>
                 </div>
 
                 {canAccessAdmin ? (

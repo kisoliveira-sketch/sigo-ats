@@ -312,7 +312,6 @@ export function PageShell({
   badge,
   title,
   subtitle,
-  heroIcon,
   actions,
   footerActions,
   compact = false,
@@ -371,14 +370,11 @@ export function PageShell({
 
           <div className="border-t border-slate-200 bg-white px-5 py-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="inline-flex items-center gap-3 text-[#1d4f91]">
-                <span className="flex h-9 w-9 items-center justify-center rounded-[0.8rem] bg-[#eef4fb]">
-                  {heroIcon ?? <HomeIcon />}
-                </span>
-                <div>
-                  <h1 className="text-[15px] font-semibold">{title || badge}</h1>
-                  {subtitle ? <p className="mt-0.5 text-[13px] text-slate-500">{subtitle}</p> : null}
-                </div>
+              <div className="text-[#1d4f91]">
+                <h1 className="text-[15px] font-semibold uppercase tracking-[0.12em]">
+                  {title || badge}
+                </h1>
+                {subtitle ? <p className="mt-0.5 text-[13px] text-slate-500">{subtitle}</p> : null}
               </div>
               {footerActions ? (
                 <div className="flex flex-wrap items-center gap-2 sm:justify-end">

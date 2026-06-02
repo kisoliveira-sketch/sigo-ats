@@ -1084,7 +1084,7 @@ export default function ShiftRecordDetailPage() {
               </div>
             ) : (
               <div className="space-y-4">
-                <div className="rounded-[1.15rem] border border-slate-200 bg-[linear-gradient(180deg,_rgba(241,245,249,0.96)_0%,_rgba(226,232,240,0.9)_100%)] px-4 pb-4 pt-6 shadow-[0_20px_40px_-32px_rgba(15,23,42,0.2)]">
+                <div className="ats-entry-shell rounded-[1.15rem] border border-slate-200 bg-[linear-gradient(180deg,_rgba(241,245,249,0.96)_0%,_rgba(226,232,240,0.9)_100%)] px-4 pb-4 pt-6 shadow-[0_20px_40px_-32px_rgba(15,23,42,0.2)]">
                   <div className="no-print mb-0 flex flex-wrap items-end gap-2 px-1">
                     {filteredEntries.map((entry, index) => {
                       const isActive = entry.id === activeEntry?.id;
@@ -1093,10 +1093,10 @@ export default function ShiftRecordDetailPage() {
                           key={entry.id}
                           type="button"
                           onClick={() => setActiveEntryId(entry.id)}
-                          className={`inline-flex items-center justify-center rounded-t-[0.75rem] border px-4 py-2.5 transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-200 ${
+                          className={`ats-entry-tab inline-flex items-center justify-center rounded-t-[0.75rem] border px-4 py-2.5 transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-200 ${
                             isActive
-                              ? "relative z-20 -mb-px border-slate-200 border-b-white bg-white shadow-[0_-8px_18px_-16px_rgba(15,23,42,0.16)]"
-                              : "relative z-10 border-slate-300/90 bg-[linear-gradient(180deg,_rgba(255,255,255,0.92)_0%,_rgba(241,245,249,0.98)_100%)] hover:bg-white"
+                              ? "ats-entry-tab-active relative z-20 -mb-px border-slate-200 border-b-white bg-white shadow-[0_-8px_18px_-16px_rgba(15,23,42,0.16)]"
+                              : "ats-entry-tab-idle relative z-10 border-slate-300/90 bg-[linear-gradient(180deg,_rgba(255,255,255,0.92)_0%,_rgba(241,245,249,0.98)_100%)] hover:bg-white"
                           }`}
                         >
                           <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
@@ -1108,7 +1108,7 @@ export default function ShiftRecordDetailPage() {
                   </div>
 
                   {activeEntry && (
-                    <section className="relative z-10 -mt-px rounded-[0_1.1rem_1.1rem_1.1rem] border border-slate-200 bg-[linear-gradient(135deg,_rgba(255,255,255,0.98)_0%,_rgba(248,250,252,0.96)_100%)] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_18px_36px_-30px_rgba(15,23,42,0.18)]">
+                    <section className="ats-entry-panel relative z-10 -mt-px rounded-[0_1.1rem_1.1rem_1.1rem] border border-slate-200 bg-[linear-gradient(135deg,_rgba(255,255,255,0.98)_0%,_rgba(248,250,252,0.96)_100%)] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_18px_36px_-30px_rgba(15,23,42,0.18)]">
                       <div className="mb-4 flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-4">
                         <div>
                           <h3 className="text-sm font-semibold tracking-tight text-slate-950 md:text-base">
@@ -1129,7 +1129,7 @@ export default function ShiftRecordDetailPage() {
                               </Link>
                             )}
                         </div>
-                        <div className="rounded-[0.8rem] border border-slate-200 bg-white px-3 py-2 text-right shadow-[0_12px_24px_-24px_rgba(15,23,42,0.18)]">
+                        <div className="ats-entry-time rounded-[0.8rem] border border-slate-200 bg-white px-3 py-2 text-right shadow-[0_12px_24px_-24px_rgba(15,23,42,0.18)]">
                           <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
                             Hora de registo
                           </div>

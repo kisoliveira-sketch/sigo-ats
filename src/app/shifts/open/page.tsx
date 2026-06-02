@@ -480,7 +480,7 @@ export default function OpenShiftPage() {
   return (
     <PageShell
       badge="Abertura do turno"
-      title="Abrir turno"
+      title="Abertura de turno"
       subtitle=""
       heroIcon={<LoginIcon />}
       compact
