@@ -152,6 +152,13 @@ type PendingAdminAction =
       confirmLabel: string;
     }
   | {
+      kind: "edit-user";
+      title: string;
+      description: string;
+      confirmLabel: string;
+      userId: string;
+    }
+  | {
       kind: "delete-user";
       title: string;
       description: string;
@@ -308,6 +315,7 @@ export default function AdminPage() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [userSaving, setUserSaving] = useState(false);
+  const [userUpdating, setUserUpdating] = useState(false);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [dashboard, setDashboard] = useState<AdminDashboard | null>(null);
   const [cleanupOverview, setCleanupOverview] = useState<CleanupOverview | null>(null);
@@ -329,6 +337,12 @@ export default function AdminPage() {
   const [newUserPassword, setNewUserPassword] = useState("asa12345");
   const [newUserRole, setNewUserRole] = useState("");
   const [newUserUnitId, setNewUserUnitId] = useState("");
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [editUserFullName, setEditUserFullName] = useState("");
+  const [editUserEmail, setEditUserEmail] = useState("");
+  const [editUserRole, setEditUserRole] = useState("");
+  const [editUserUnitId, setEditUserUnitId] = useState("");
+  const [editUserLabel, setEditUserLabel] = useState("");
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"error" | "success" | "info">(
     "info",
@@ -847,6 +861,96 @@ export default function AdminPage() {
     setDeletingUserId(null);
   };
 
+  const openEditUser = (user: DashboardUser) => {
+    setEditingUserId(user.id);
+    setEditUserFullName(user.full_name || "");
+    setEditUserEmail(user.email || "");
+    setEditUserRole(user.role);
+    setEditUserUnitId(user.ats_unit?.id ? String(user.ats_unit.id) : "");
+    setEditUserLabel(user.full_name || user.email || "este utilizador");
+  };
+
+  const closeEditUser = () => {
+    setEditingUserId(null);
+    setEditUserFullName("");
+    setEditUserEmail("");
+    setEditUserRole("");
+    setEditUserUnitId("");
+    setEditUserLabel("");
+  };
+
+  const executeUpdateUser = async (userId: string) => {
+    if (!editUserFullName || !editUserEmail || !editUserRole || !editUserUnitId) {
+      setMessage("Preencha nome, email, role e órgão ATS para atualizar o utilizador.");
+      setMessageTone("error");
+      return;
+    }
+
+    const token = await getSessionToken().catch(() => null);
+    if (!token) {
+      setMessage("Sessão inválida. Entre novamente para continuar.");
+      setMessageTone("error");
+      return;
+    }
+
+    setUserUpdating(true);
+    setMessage("");
+
+    const response = await fetch("/api/admin/users", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        userId,
+        fullName: editUserFullName,
+        email: editUserEmail,
+        role: editUserRole,
+        atsUnitId: Number(editUserUnitId),
+      }),
+    });
+
+    const payload = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      setMessage(
+        getFriendlyErrorMessage(
+          "Não foi possível atualizar o utilizador",
+          payload?.error ?? "Erro desconhecido",
+        ),
+      );
+      setMessageTone("error");
+      setUserUpdating(false);
+      return;
+    }
+
+    await loadAdminData();
+    closeEditUser();
+    setMessage(payload?.message ?? "Utilizador atualizado com sucesso.");
+    setMessageTone("success");
+    setUserUpdating(false);
+  };
+
+  const handleUpdateUser = () => {
+    if (!editingUserId) return;
+
+    if (!editUserFullName || !editUserEmail || !editUserRole || !editUserUnitId) {
+      setMessage("Preencha nome, email, role e órgão ATS para atualizar o utilizador.");
+      setMessageTone("error");
+      return;
+    }
+
+    setActionCountdown(20);
+    setPendingAction({
+      kind: "edit-user",
+      title: "Confirmar atualização de utilizador",
+      description: `Vai atualizar os dados do utilizador ${editUserLabel}, incluindo role e órgão ATS. Confirme apenas quando tiver certeza do impacto operacional da alteração.`,
+      confirmLabel: "Guardar alterações",
+      userId: editingUserId,
+    });
+  };
+
   const handleDeleteUser = (userId: string, userLabel: string) => {
     setActionCountdown(20);
     setPendingAction({
@@ -867,6 +971,11 @@ export default function AdminPage() {
 
     if (action.kind === "create-user") {
       await executeCreateUser();
+      return;
+    }
+
+    if (action.kind === "edit-user") {
+      await executeUpdateUser(action.userId);
       return;
     }
 
@@ -962,6 +1071,110 @@ export default function AdminPage() {
                   className="inline-flex items-center justify-center rounded-[0.85rem] border border-red-600 bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition duration-200 hover:border-red-700 hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {pendingAction.confirmLabel}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {editingUserId ? (
+          <div className="fixed inset-0 z-[85] flex items-center justify-center bg-slate-950/70 px-4">
+            <div className="w-full max-w-2xl rounded-[1.2rem] border border-slate-200 bg-white p-6 shadow-[0_30px_80px_-30px_rgba(15,23,42,0.5)] dark:border-slate-600 dark:bg-[rgba(16,25,41,0.98)]">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1d4f91] dark:text-slate-300">
+                Edição de utilizador
+              </div>
+              <h2 className="mt-2 text-2xl font-bold text-slate-950 dark:text-slate-50">
+                Atualizar utilizador
+              </h2>
+              <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                Edite os dados abaixo e use a confirmação reforçada para guardar as alterações.
+              </p>
+
+              <div className="mt-5 grid gap-4 md:grid-cols-2">
+                <label className="block md:col-span-2">
+                  <span className="mb-1.5 block text-[13px] font-semibold text-slate-600 dark:text-slate-300">
+                    Nome completo
+                  </span>
+                  <input
+                    type="text"
+                    value={editUserFullName}
+                    onChange={(e) => setEditUserFullName(e.target.value)}
+                    className="w-full rounded-[0.75rem] border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 dark:border-slate-600 dark:bg-[rgba(24,36,58,0.92)] dark:text-slate-100"
+                  />
+                </label>
+                <label className="block md:col-span-2">
+                  <span className="mb-1.5 block text-[13px] font-semibold text-slate-600 dark:text-slate-300">
+                    Email
+                  </span>
+                  <input
+                    type="email"
+                    value={editUserEmail}
+                    onChange={(e) => setEditUserEmail(e.target.value)}
+                    className="w-full rounded-[0.75rem] border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 dark:border-slate-600 dark:bg-[rgba(24,36,58,0.92)] dark:text-slate-100"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-[13px] font-semibold text-slate-600 dark:text-slate-300">
+                    Role
+                  </span>
+                  <select
+                    value={editUserRole}
+                    onChange={(e) => setEditUserRole(e.target.value)}
+                    className="w-full rounded-[0.75rem] border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 dark:border-slate-600 dark:bg-[rgba(24,36,58,0.92)] dark:text-slate-100"
+                  >
+                    <option value="">Selecionar role</option>
+                    {(dashboard?.roleOptions ?? []).map((role) => (
+                      <option key={role} value={role}>
+                        {role}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-[13px] font-semibold text-slate-600 dark:text-slate-300">
+                    Órgão ATS
+                  </span>
+                  <select
+                    value={editUserUnitId}
+                    onChange={(e) => setEditUserUnitId(e.target.value)}
+                    className="w-full rounded-[0.75rem] border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 dark:border-slate-600 dark:bg-[rgba(24,36,58,0.92)] dark:text-slate-100"
+                  >
+                    <option value="">Selecionar órgão ATS</option>
+                    {(cleanupOverview?.units ?? []).map((unit) => (
+                      <option key={unit.id} value={String(unit.id)}>
+                        {unit.code} · {unit.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <div className="mt-6 flex flex-wrap justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() =>
+                    editingUserId &&
+                    handleDeleteUser(editingUserId, editUserLabel || "este utilizador")
+                  }
+                  disabled={deletingUserId === editingUserId || userUpdating}
+                  className="inline-flex items-center justify-center rounded-[0.85rem] border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700 transition duration-200 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {deletingUserId === editingUserId ? "A apagar..." : "Apagar utilizador"}
+                </button>
+                <button
+                  type="button"
+                  onClick={closeEditUser}
+                  className="inline-flex items-center justify-center rounded-[0.85rem] border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition duration-200 hover:bg-slate-50 dark:border-slate-600 dark:bg-transparent dark:text-slate-200 dark:hover:bg-white/5"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleUpdateUser}
+                  disabled={userUpdating}
+                  className="inline-flex items-center justify-center rounded-[0.85rem] border border-[#1d4f91] bg-[#1d4f91] px-4 py-2.5 text-sm font-semibold text-white transition duration-200 hover:border-[#163d70] hover:bg-[#163d70] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {userUpdating ? "A guardar..." : "Guardar alterações"}
                 </button>
               </div>
             </div>
@@ -1246,7 +1459,7 @@ export default function AdminPage() {
           </div>
 
           <div className="app-surface-subtle mt-4 rounded-[0.95rem] border border-slate-200 bg-white">
-            <div className="grid grid-cols-[1.4fr_1.1fr_0.8fr_1fr_0.7fr] gap-4 border-b border-slate-200 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+            <div className="grid grid-cols-[1.4fr_1.1fr_0.8fr_1fr_0.7fr] gap-4 border-b border-slate-200/30 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
               <button
                 type="button"
                 onClick={() => toggleUserSort("user")}
@@ -1281,7 +1494,7 @@ export default function AdminPage() {
               </button>
               <span className="text-right">Ações</span>
             </div>
-            <div className="divide-y divide-slate-200">
+            <div className="divide-y divide-slate-200/30">
               {paginatedUsers.map((user) => (
                 <div
                   key={user.id}
@@ -1318,16 +1531,11 @@ export default function AdminPage() {
                   <div className="self-center text-right">
                     <button
                       type="button"
-                      onClick={() =>
-                        handleDeleteUser(
-                          user.id,
-                          user.full_name || user.email || "este utilizador",
-                        )
-                      }
-                      disabled={deletingUserId === user.id}
-                      className="inline-flex items-center justify-center rounded-[0.72rem] border border-red-200 bg-red-50 px-3 py-1.5 text-[12px] font-semibold uppercase tracking-[0.12em] text-red-700 transition duration-200 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      onClick={() => openEditUser(user)}
+                      disabled={userUpdating || deletingUserId === user.id}
+                      className="inline-flex items-center justify-center rounded-[0.72rem] border border-slate-300 bg-white px-3 py-1.5 text-[12px] font-semibold uppercase tracking-[0.12em] text-slate-700 transition duration-200 hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {deletingUserId === user.id ? "A apagar..." : "Apagar"}
+                      Editar
                     </button>
                   </div>
                 </div>
@@ -1338,7 +1546,7 @@ export default function AdminPage() {
                 </div>
               ) : null}
             </div>
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-4 py-3 text-sm text-slate-500">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/30 px-4 py-3 text-sm text-slate-500">
               <div>
                 {filteredUsers.length
                   ? `A mostrar ${userPageStart}-${userPageEnd} de ${filteredUsers.length}`
