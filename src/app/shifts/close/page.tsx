@@ -516,7 +516,7 @@ export default function CloseShiftPage() {
               subtitle="Dados principais antes do encerramento."
             >
               <div className="grid gap-4 md:grid-cols-2">
-                <div className="rounded-[0.9rem] border border-slate-200 bg-slate-50 p-4">
+                <div className="app-surface-subtle rounded-[0.9rem] border border-slate-200 bg-slate-50 p-4">
                   <p className="text-xs uppercase tracking-wide text-slate-500">
                     Início UTC
                   </p>
@@ -525,7 +525,7 @@ export default function CloseShiftPage() {
                   </p>
                 </div>
 
-                <div className="rounded-[0.9rem] border border-slate-200 bg-slate-50 p-4">
+                <div className="app-surface-subtle rounded-[0.9rem] border border-slate-200 bg-slate-50 p-4">
                   <p className="text-xs uppercase tracking-wide text-slate-500">
                     Estado atual
                   </p>
@@ -534,7 +534,7 @@ export default function CloseShiftPage() {
                   </p>
                 </div>
 
-                <div className="rounded-[0.9rem] border border-slate-200 bg-slate-50 p-4 md:col-span-2">
+                <div className="app-surface-subtle rounded-[0.9rem] border border-slate-200 bg-slate-50 p-4 md:col-span-2">
                   <p className="text-xs uppercase tracking-wide text-slate-500">
                     Notas de abertura
                   </p>
@@ -543,7 +543,7 @@ export default function CloseShiftPage() {
                   </p>
                 </div>
 
-                <div className="rounded-[0.9rem] border border-slate-200 bg-slate-50 p-4 md:col-span-2">
+                <div className="app-surface-subtle rounded-[0.9rem] border border-slate-200 bg-slate-50 p-4 md:col-span-2">
                   <div className="flex items-center gap-2 text-slate-500">
                     <span className="flex h-7 w-7 items-center justify-center rounded-[0.65rem] border border-slate-200 bg-white text-slate-600">
                       <UsersIcon />
@@ -588,7 +588,7 @@ export default function CloseShiftPage() {
                   />
                 </div>
 
-                <label className="flex items-start gap-3 rounded-[1rem] border border-slate-200 bg-slate-50/80 p-3.5 text-sm text-slate-700">
+                <label className="app-surface-subtle flex items-start gap-3 rounded-[1rem] border border-slate-200 bg-slate-50/80 p-3.5 text-sm text-slate-700">
                   <input
                     type="checkbox"
                     checked={confirmClose}
@@ -620,7 +620,7 @@ export default function CloseShiftPage() {
             subtitle="Posições ocupadas durante o turno."
           >
             {positionLogs.length === 0 ? (
-              <div className="rounded-[0.9rem] border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+              <div className="app-surface-subtle rounded-[0.9rem] border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
                 Não existem logs operacionais registados neste turno.
               </div>
             ) : (
@@ -628,7 +628,7 @@ export default function CloseShiftPage() {
                 {positionLogs.map((log, index) => (
                   <div
                     key={log.id}
-                    className="rounded-[0.9rem] border border-slate-200 bg-slate-50/70 px-4 py-4"
+                    className="app-surface-subtle rounded-[0.9rem] border border-slate-200 bg-slate-50/70 px-4 py-4"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>

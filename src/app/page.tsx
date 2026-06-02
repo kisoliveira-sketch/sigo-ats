@@ -6,7 +6,6 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getFriendlyErrorMessage } from "@/lib/friendly-errors";
 import { supabase } from "@/lib/supabase";
-import { formatRecentUtcMoment, formatUtcTime } from "@/lib/time";
 import {
   AppFooter,
   FileIcon,
@@ -39,6 +38,7 @@ type Shift = {
   status: string;
   operational_date?: string;
   opened_by?: string | null;
+  start_time_utc?: string | null;
   end_time_utc?: string | null;
   validated_at_utc?: string | null;
   opening_notes?: string | null;
@@ -52,6 +52,68 @@ type ActivePositionLog = {
   notes: string | null;
   user_name: string;
 };
+
+type ThemeDisplayMode = "light" | "dark" | "system";
+type TimeDisplayMode = "utc" | "local";
+const THEME_DISPLAY_STORAGE_KEY = "sigo-theme-display";
+const TIME_DISPLAY_STORAGE_KEY = "sigo-time-display";
+
+function pad(value: number) {
+  return String(value).padStart(2, "0");
+}
+
+function formatTimeByPreference(value: string | null, timeDisplayMode: TimeDisplayMode) {
+  if (!value) return "—";
+
+  const date = new Date(value);
+
+  if (timeDisplayMode === "local") {
+    return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
+
+  return `${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}`;
+}
+
+function formatEventByPreference(
+  value: string | null,
+  timeDisplayMode: TimeDisplayMode,
+) {
+  if (!value) return "—";
+
+  const date = new Date(value);
+  const now = new Date();
+
+  const sameDay =
+    timeDisplayMode === "local"
+      ? date.getFullYear() === now.getFullYear() &&
+        date.getMonth() === now.getMonth() &&
+        date.getDate() === now.getDate()
+      : date.getUTCFullYear() === now.getUTCFullYear() &&
+        date.getUTCMonth() === now.getUTCMonth() &&
+        date.getUTCDate() === now.getUTCDate();
+
+  const timeLabel = formatTimeByPreference(value, timeDisplayMode);
+
+  if (sameDay) {
+    return timeLabel;
+  }
+
+  return timeDisplayMode === "local"
+    ? `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} ${timeLabel}`
+    : `${pad(date.getUTCDate())}/${pad(date.getUTCMonth() + 1)}/${date.getUTCFullYear()} ${timeLabel}`;
+}
+
+function readStoredTimeDisplayMode(): TimeDisplayMode {
+  if (typeof window === "undefined") return "utc";
+  const stored = window.localStorage.getItem(TIME_DISPLAY_STORAGE_KEY);
+  return stored === "local" ? "local" : "utc";
+}
+
+function readStoredThemeDisplayMode(): ThemeDisplayMode {
+  if (typeof window === "undefined") return "light";
+  const stored = window.localStorage.getItem(THEME_DISPLAY_STORAGE_KEY);
+  return stored === "dark" || stored === "system" ? stored : "light";
+}
 
 function extractCompositionLines(openingNotes?: string | null) {
   if (!openingNotes) return [];
@@ -179,16 +241,6 @@ function CheckCircleIcon() {
       <path d="m8.8 12.1 2.1 2.1 4.7-5" />
     </svg>
   );
-}
-
-function SystemDot({ tone = "green" }: { tone?: "green" | "slate" | "orange" }) {
-  const cls =
-    tone === "green"
-      ? "bg-emerald-500"
-      : tone === "orange"
-      ? "bg-amber-500"
-      : "bg-slate-400";
-  return <span className={`h-2.5 w-2.5 rounded-full ${cls}`} />;
 }
 
 function BoltIcon() {
@@ -325,7 +377,7 @@ function QuickAccessCard({
 
   const content = (
     <div
-      className={`group flex h-full min-h-[108px] flex-col rounded-[1rem] border px-3 py-2 ring-1 ring-white/80 transition duration-200 ${locked ? "" : "hover:-translate-y-1"} ${accentClasses.card}`}
+      className={`quick-access-card group flex h-full min-h-[108px] flex-col rounded-[1rem] border px-3 py-2 ring-1 ring-white/80 transition duration-200 ${locked ? "quick-access-card--locked" : ""} ${primary ? "quick-access-card--primary" : ""} ${accent === "orange" ? "quick-access-card--orange" : accent === "blue" ? "quick-access-card--blue" : "quick-access-card--slate"} ${locked ? "" : "hover:-translate-y-1"} ${accentClasses.card}`}
     >
       <div className="flex min-w-0 items-start gap-1.5">
         <span
@@ -428,7 +480,7 @@ export default function Home() {
   const [atsUnit, setAtsUnit] = useState<AtsUnit | null>(null);
   const [openShift, setOpenShift] = useState<Shift | null>(null);
   const [openShiftOpenedByName, setOpenShiftOpenedByName] = useState("—");
-  const [lastClosedShift, setLastClosedShift] = useState<Shift | null>(null);
+  const [lastOperationalEventAt, setLastOperationalEventAt] = useState<string | null>(null);
   const [activeOccurrencesCount, setActiveOccurrencesCount] = useState(0);
   const [activePendingCount, setActivePendingCount] = useState(0);
   const [activePositionLogs, setActivePositionLogs] = useState<ActivePositionLog[]>([]);
@@ -440,6 +492,61 @@ export default function Home() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [showForgotPasswordAction, setShowForgotPasswordAction] = useState(false);
+  const [themeDisplayMode, setThemeDisplayMode] = useState<ThemeDisplayMode>("light");
+  const [systemPrefersDark, setSystemPrefersDark] = useState(false);
+  const [timeDisplayMode, setTimeDisplayMode] = useState<TimeDisplayMode>("utc");
+  const [preferencesReady, setPreferencesReady] = useState(false);
+
+  const resolvedThemeDisplayMode =
+    themeDisplayMode === "system"
+      ? systemPrefersDark
+        ? "dark"
+        : "light"
+      : themeDisplayMode;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const frameId = window.requestAnimationFrame(() => {
+      setThemeDisplayMode(readStoredThemeDisplayMode());
+      setTimeDisplayMode(readStoredTimeDisplayMode());
+      setSystemPrefersDark(window.matchMedia("(prefers-color-scheme: dark)").matches);
+      setPreferencesReady(true);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !preferencesReady) return;
+    const resolvedTheme =
+      themeDisplayMode === "system" ? (systemPrefersDark ? "dark" : "light") : themeDisplayMode;
+
+    window.localStorage.setItem(THEME_DISPLAY_STORAGE_KEY, themeDisplayMode);
+    document.documentElement.dataset.sigoTheme = resolvedTheme;
+  }, [preferencesReady, systemPrefersDark, themeDisplayMode]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const updatePreference = (event: MediaQueryListEvent) => {
+      setSystemPrefersDark(event.matches);
+    };
+
+    mediaQuery.addEventListener("change", updatePreference);
+
+    return () => {
+      mediaQuery.removeEventListener("change", updatePreference);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !preferencesReady) return;
+    window.localStorage.setItem(TIME_DISPLAY_STORAGE_KEY, timeDisplayMode);
+  }, [preferencesReady, timeDisplayMode]);
 
   const loadProfileAndShift = async (
     userId?: string,
@@ -468,7 +575,6 @@ export default function Home() {
           setAtsUnit(null);
           setOpenShift(null);
           setOpenShiftOpenedByName("—");
-          setLastClosedShift(null);
           setActiveOccurrencesCount(0);
           setActivePendingCount(0);
           setActivePositionLogs([]);
@@ -481,7 +587,6 @@ export default function Home() {
           setAtsUnit(null);
           setOpenShift(null);
           setOpenShiftOpenedByName("—");
-          setLastClosedShift(null);
           setActiveOccurrencesCount(0);
           setActivePendingCount(0);
           setActivePositionLogs([]);
@@ -511,7 +616,7 @@ export default function Home() {
         setAtsUnit(null);
         setOpenShift(null);
         setOpenShiftOpenedByName("—");
-        setLastClosedShift(null);
+        setLastOperationalEventAt(null);
         setActiveOccurrencesCount(0);
         setActivePendingCount(0);
         setActivePositionLogs([]);
@@ -525,7 +630,7 @@ export default function Home() {
         setAtsUnit(null);
         setOpenShift(null);
         setOpenShiftOpenedByName("—");
-        setLastClosedShift(null);
+        setLastOperationalEventAt(null);
         setActiveOccurrencesCount(0);
         setActivePendingCount(0);
         setActivePositionLogs([]);
@@ -540,7 +645,6 @@ export default function Home() {
         setAtsUnit(null);
         setOpenShift(null);
         setOpenShiftOpenedByName("—");
-        setLastClosedShift(null);
         setActiveOccurrencesCount(0);
         setActivePendingCount(0);
         return;
@@ -568,7 +672,7 @@ export default function Home() {
 
       const { data: shiftData, error: shiftError } = await supabase
         .from("shifts")
-        .select("id, shift_code, status, operational_date, opened_by, validated_at_utc, opening_notes")
+        .select("id, shift_code, status, operational_date, opened_by, start_time_utc, validated_at_utc, opening_notes")
         .eq("ats_unit_id", data.ats_unit_id)
         .eq("status", "OPEN")
         .order("id", { ascending: false })
@@ -615,7 +719,54 @@ export default function Home() {
         .maybeSingle();
 
       if (!mounted || isLoggingOutRef.current) return;
-      setLastClosedShift(closedShiftData || null);
+      const [
+        { data: latestOccurrenceData },
+        { data: latestLogEntryData },
+        { data: latestLogExitData },
+      ] = await Promise.all([
+        supabase
+          .from("occurrences")
+          .select("occurrence_at_utc")
+          .eq("ats_unit_id", data.ats_unit_id)
+          .order("occurrence_at_utc", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from("shift_position_logs")
+          .select("entered_at_utc")
+          .eq("ats_unit_id", data.ats_unit_id)
+          .order("entered_at_utc", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from("shift_position_logs")
+          .select("left_at_utc")
+          .eq("ats_unit_id", data.ats_unit_id)
+          .not("left_at_utc", "is", null)
+          .order("left_at_utc", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+
+      if (!mounted || isLoggingOutRef.current) return;
+
+      const eventCandidates = [
+        shiftData?.validated_at_utc,
+        shiftData?.start_time_utc,
+        closedShiftData?.end_time_utc,
+        latestOccurrenceData?.occurrence_at_utc,
+        latestLogEntryData?.entered_at_utc,
+        latestLogExitData?.left_at_utc,
+      ].filter(Boolean) as string[];
+
+      const latestEvent =
+        eventCandidates.length > 0
+          ? eventCandidates.reduce((latest, current) =>
+              new Date(current).getTime() > new Date(latest).getTime() ? current : latest,
+            )
+          : null;
+
+      setLastOperationalEventAt(latestEvent);
     } catch (error) {
       if (!mounted || isLoggingOutRef.current) return;
 
@@ -627,7 +778,7 @@ export default function Home() {
       setAtsUnit(null);
       setOpenShift(null);
       setOpenShiftOpenedByName("—");
-      setLastClosedShift(null);
+      setLastOperationalEventAt(null);
       setActiveOccurrencesCount(0);
       setActivePendingCount(0);
       setActivePositionLogs([]);
@@ -667,7 +818,7 @@ export default function Home() {
         setAtsUnit(null);
         setOpenShift(null);
         setOpenShiftOpenedByName("—");
-        setLastClosedShift(null);
+        setLastOperationalEventAt(null);
         setActiveOccurrencesCount(0);
         setActivePendingCount(0);
         setActivePositionLogs([]);
@@ -834,6 +985,7 @@ export default function Home() {
   const currentUserShiftRole = extractUserShiftRole(openShift?.opening_notes, profile);
   const profileCardLabel = hasOpenShift && currentUserShiftRole ? "Função no turno" : "Perfil";
   const profileCardValue = currentUserShiftRole || profile?.role || "—";
+  const canAccessAdmin = (profile?.role ?? "") === "ADMIN";
   const canManagePositionLogs =
     !!profile &&
     !!openShift &&
@@ -1078,7 +1230,12 @@ export default function Home() {
 
   if (booting) {
     return (
-      <main className="app-atc-background relative flex min-h-screen items-center justify-center text-slate-900">
+      <main
+        data-dashboard-theme={resolvedThemeDisplayMode}
+        className={`app-atc-background relative flex min-h-screen items-center justify-center text-slate-900 ${
+          resolvedThemeDisplayMode === "dark" ? "dashboard-theme-dark" : ""
+        }`}
+      >
         <div className="rounded-[0.9rem] border border-slate-200 bg-white px-6 py-4 shadow-sm">
           A carregar...
         </div>
@@ -1088,7 +1245,12 @@ export default function Home() {
 
   if (profile && !isPasswordRecoveryMode) {
     return (
-      <main className="app-atc-background relative min-h-screen text-slate-900">
+      <main
+        data-dashboard-theme={resolvedThemeDisplayMode}
+        className={`app-atc-background relative min-h-screen text-slate-900 ${
+          resolvedThemeDisplayMode === "dark" ? "dashboard-theme-dark" : ""
+        }`}
+      >
         <div className="mx-auto max-w-7xl p-5 lg:p-7">
           <header className="overflow-hidden rounded-[1.05rem] border border-slate-200 bg-white shadow-[0_20px_40px_-34px_rgba(15,23,42,0.18)]">
             <div className="flex items-start justify-between gap-4 px-6 py-5">
@@ -1099,7 +1261,7 @@ export default function Home() {
                     alt="SIRO-ATS"
                     width={2048}
                     height={398}
-                    className="h-12 w-auto object-contain"
+                    className="dashboard-brand-logo h-12 w-auto object-contain"
                   />
                 </Link>
               </div>
@@ -1121,6 +1283,16 @@ export default function Home() {
                   <InfoIcon />
                   Ajuda
                 </Link>
+
+                {canAccessAdmin ? (
+                  <Link
+                    href="/admin"
+                    className="inline-flex min-w-[132px] items-center justify-center gap-2 rounded-[0.8rem] border border-slate-200 bg-white px-4 py-2.5 text-[14px] font-semibold text-[#1d4f91] shadow-[0_12px_22px_-18px_rgba(15,23,42,0.14)] transition duration-200 hover:-translate-y-0.5 hover:border-[#2a67ba] hover:bg-[#eef4fb] hover:text-[#1d4f91] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2a67ba]/35"
+                  >
+                    <GridIcon />
+                    Administração
+                  </Link>
+                ) : null}
               </div>
             </div>
 
@@ -1143,7 +1315,7 @@ export default function Home() {
                       Estado operacional
                     </p>
                     <h2
-                      className={`mt-3 text-[2.05rem] font-semibold tracking-tight ${
+                      className={`operational-status-heading mt-3 text-[2.05rem] font-semibold tracking-tight ${
                         hasOpenShift ? "text-emerald-800" : "text-amber-800"
                       }`}
                     >
@@ -1152,8 +1324,8 @@ export default function Home() {
                     <div
                       className={`mt-4 flex max-w-[44rem] items-start gap-3 rounded-[0.9rem] border px-3.5 py-3 text-[14px] shadow-[0_12px_24px_-22px_rgba(15,23,42,0.18)] ${
                         hasNoActivePosition
-                          ? "border-amber-200 bg-amber-50/85 text-amber-800"
-                          : "border-emerald-200 bg-emerald-50/85 text-emerald-800"
+                          ? "operational-presence-banner operational-presence-banner--idle border-amber-200 bg-amber-50/85 text-amber-800"
+                          : "operational-presence-banner operational-presence-banner--active border-emerald-200 bg-emerald-50/85 text-emerald-800"
                       }`}
                     >
                       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[0.75rem] border border-current/15 bg-white/70">
@@ -1166,7 +1338,7 @@ export default function Home() {
                   </div>
 
                   <span
-                    className={`led-display led-display--status rounded-[0.8rem] border px-4 py-2 ${
+                    className={`operational-status-chip led-display led-display--status rounded-[0.8rem] border px-4 py-2 ${
                       hasOpenShift
                         ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                         : "border-amber-200 bg-amber-50 text-amber-700"
@@ -1267,7 +1439,7 @@ export default function Home() {
 
                 <Link
                   href={primaryActionHref}
-                  className={`${appButtonClass("primary")} relative translate-y-[7.5px] mt-auto inline-flex w-full items-center justify-center gap-3 pt-14 py-[14px] text-center text-[15px] hover:border-[#f28c28] hover:bg-[#f28c28] hover:shadow-[0_22px_38px_-18px_rgba(242,140,40,0.52)]`}
+                  className={`dashboard-primary-action-btn ${appButtonClass("primary")} relative translate-y-[7.5px] mt-auto inline-flex w-full items-center justify-center gap-3 pt-14 py-[14px] text-center text-[15px] hover:border-[#f28c28] hover:bg-[#f28c28] hover:shadow-[0_22px_38px_-18px_rgba(242,140,40,0.52)]`}
                 >
                   <span className="relative -top-3 flex items-center justify-center gap-3">
                     <PlayTriangleIcon />
@@ -1359,7 +1531,7 @@ export default function Home() {
                 <div className="flex items-center gap-3 text-[#1d4f91]">
                   <ChartIcon />
                   <h3 className="text-[12px] font-semibold uppercase tracking-[0.16em]">
-                    Resumo de hoje
+                    Resumo diário
                   </h3>
                 </div>
 
@@ -1394,12 +1566,15 @@ export default function Home() {
                     },
                     {
                       id: "last-update",
-                      value: formatUtcTime(lastClosedShift?.end_time_utc),
+                      value: formatEventByPreference(
+                        lastOperationalEventAt,
+                        timeDisplayMode,
+                      ),
                       label: (
                         <>
-                          Última
+                          Último evento
                           <br />
-                          atualização
+                          ({timeDisplayMode === "utc" ? "UTC" : "Local"})
                         </>
                       ),
                       icon: <ClockIcon />,
@@ -1450,33 +1625,43 @@ export default function Home() {
                 <div className="flex items-center gap-3 text-[#1d4f91]">
                   <GearIcon />
                   <h3 className="text-[12px] font-semibold uppercase tracking-[0.16em]">
-                    Sistema
+                    Preferências
                   </h3>
                 </div>
 
                 <div className="mt-3 overflow-hidden rounded-[0.9rem] border border-slate-200 bg-slate-50/45">
                   <div className="flex items-center justify-between gap-3 px-4 py-2.5">
                     <div className="flex items-center gap-3 text-[14px] text-slate-700">
-                      <SystemDot />
-                      <span>Estado do sistema</span>
+                      <GearIcon />
+                      <span>Tema visual</span>
                     </div>
-                    <span className="font-medium text-emerald-600">Operacional</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3 border-t border-slate-200 px-4 py-2.5">
-                    <div className="flex items-center gap-3 text-[14px] text-slate-700">
-                      <SystemDot />
-                      <span>Base de dados</span>
-                    </div>
-                    <span className="font-medium text-emerald-600">Sincronizada</span>
+                    <select
+                      value={themeDisplayMode}
+                      onChange={(event) =>
+                        setThemeDisplayMode(event.target.value as ThemeDisplayMode)
+                      }
+                      className="min-w-[138px] rounded-[0.72rem] border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-slate-700 shadow-[0_10px_22px_-20px_rgba(15,23,42,0.18)] outline-none transition focus:border-[#2a67ba] focus:ring-2 focus:ring-[#1d4f91]/10"
+                    >
+                      <option value="light">Claro</option>
+                      <option value="dark">Escuro</option>
+                      <option value="system">Sistema</option>
+                    </select>
                   </div>
                   <div className="flex items-center justify-between gap-3 border-t border-slate-200 px-4 py-2.5">
                     <div className="flex items-center gap-3 text-[14px] text-slate-700">
                       <ClockIcon />
-                      <span>Último fecho de turno</span>
+                      <span>Hora operacional</span>
                     </div>
-                    <span className="font-medium text-slate-800">
-                      {formatRecentUtcMoment(lastClosedShift?.end_time_utc)}
-                    </span>
+                    <select
+                      value={timeDisplayMode}
+                      onChange={(event) =>
+                        setTimeDisplayMode(event.target.value as TimeDisplayMode)
+                      }
+                      className="min-w-[138px] rounded-[0.72rem] border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-slate-700 shadow-[0_10px_22px_-20px_rgba(15,23,42,0.18)] outline-none transition focus:border-[#2a67ba] focus:ring-2 focus:ring-[#1d4f91]/10"
+                    >
+                      <option value="utc">UTC</option>
+                      <option value="local">Local</option>
+                    </select>
                   </div>
                 </div>
               </section>
@@ -1495,16 +1680,22 @@ export default function Home() {
 
   return (
     <main
-      className="relative min-h-screen w-full overflow-hidden bg-[#f7fbff] bg-cover bg-center bg-no-repeat text-slate-900"
-      style={{
-        backgroundImage:
-          'url("https://dtqajfxkhfarwqzuuepn.supabase.co/storage/v1/object/sign/occurrences-docs/fundo_login.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9iZjJmYzNkZS1kZDQzLTQ5NGYtYjk1MS03NTcyMGZkYmVhYzciLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJvY2N1cnJlbmNlcy1kb2NzL2Z1bmRvX2xvZ2luLnBuZyIsImlhdCI6MTc3NzEwNTEzNSwiZXhwIjo0OTMwNzA1MTM1fQ.Id1a8DIXSqJ8O3AQOsaund-sY4yfRp4kgiuEbq6Cf9A")',
-      }}
+      data-dashboard-theme={resolvedThemeDisplayMode}
+      className={`login-shell relative min-h-screen w-full overflow-hidden bg-[#f7fbff] text-slate-900 ${
+        resolvedThemeDisplayMode === "dark" ? "dashboard-theme-dark" : ""
+      }`}
     >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.1),_rgba(247,251,255,0.2)_42%,_rgba(247,251,255,0.26)_100%)]" />
+      <div
+        className="login-bg-image absolute inset-0 bg-cover bg-center bg-no-repeat"
+        style={{
+          backgroundImage:
+            'url("https://dtqajfxkhfarwqzuuepn.supabase.co/storage/v1/object/sign/occurrences-docs/fundo_login.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV9iZjJmYzNkZS1kZDQzLTQ5NGYtYjk1MS03NTcyMGZkYmVhYzciLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJvY2N1cnJlbmNlcy1kb2NzL2Z1bmRvX2xvZ2luLnBuZyIsImlhdCI6MTc3NzEwNTEzNSwiZXhwIjo0OTMwNzA1MTM1fQ.Id1a8DIXSqJ8O3AQOsaund-sY4yfRp4kgiuEbq6Cf9A")',
+        }}
+      />
+      <div className="login-shell-overlay absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.1),_rgba(247,251,255,0.2)_42%,_rgba(247,251,255,0.26)_100%)]" />
 
       <div className="relative z-10 flex min-h-screen w-full items-center justify-center p-4 sm:p-6">
-        <section className="mx-auto w-full max-w-[510px] rounded-[18px] border border-white/80 bg-white/94 px-[26px] py-[28px] shadow-[0_26px_70px_-34px_rgba(15,23,42,0.26)] ring-1 ring-white/80 backdrop-blur sm:px-[34px] sm:py-[32px]">
+        <section className="login-card mx-auto w-full max-w-[510px] rounded-[18px] border border-white/80 bg-white/94 px-[26px] py-[28px] shadow-[0_26px_70px_-34px_rgba(15,23,42,0.26)] ring-1 ring-white/80 backdrop-blur sm:px-[34px] sm:py-[32px]">
           <div className="space-y-5">
             <div className="text-center">
               <Link href="/" className="inline-flex">
@@ -1513,7 +1704,7 @@ export default function Home() {
                   alt="SIRO-ATS"
                   width={2048}
                   height={398}
-                  className="h-12 w-auto object-contain sm:h-14"
+                  className="app-shell-brand-logo h-12 w-auto object-contain sm:h-14"
                 />
               </Link>
               <div className="mx-auto mt-5 flex max-w-[34rem] items-center gap-0">
@@ -1675,7 +1866,7 @@ export default function Home() {
 
       <div className="relative z-10 px-4 pb-4 sm:px-6 sm:pb-6">
         <div className="mx-auto max-w-[510px]">
-          <AppFooter />
+          <AppFooter className="login-footer" />
         </div>
       </div>
     </main>

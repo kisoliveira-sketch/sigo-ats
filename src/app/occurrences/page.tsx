@@ -186,7 +186,7 @@ export default function OccurrencesPage() {
 
   const getStatusBadge = (status: string) => {
     return status === "OPEN"
-      ? "border-emerald-300 bg-emerald-100 text-emerald-800"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
       : "border-slate-300 bg-slate-100 text-slate-700";
   };
 
@@ -298,12 +298,12 @@ export default function OccurrencesPage() {
             </div>
           ) : (
             <>
-              <div className="overflow-hidden rounded-[0.9rem] border border-slate-200">
+              <div className="app-surface-subtle overflow-hidden rounded-[0.9rem] border border-slate-200">
                 {paginatedRows.map((row, index) => (
                   <Link
                     key={row.id}
                     href={`/occurrences/${row.id}`}
-                    className={`block bg-white px-5 py-4 transition hover:bg-blue-50 ${
+                    className={`block px-5 py-4 transition hover:bg-blue-50 ${
                       index !== paginatedRows.length - 1
                         ? "border-b border-slate-200"
                         : ""

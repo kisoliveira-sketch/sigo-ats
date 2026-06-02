@@ -146,6 +146,7 @@ begin
           when 'francisco.ramos@asa.cv' then 'Francisco Ramos'
           when 'claudio.barros@asa.cv' then 'Claudio Barros'
           when 'valnir.morais@asa.cv' then 'Valnir Morais'
+          when 'adilson.vaz@asa.cv' then 'Adilson Carlos Gonçalves Vaz'
           else split_part(auth_user.email, '@', 1)
         end as full_name,
         auth_user.email,
@@ -160,7 +161,8 @@ begin
         'elio.barros@asa.cv',
         'francisco.ramos@asa.cv',
         'claudio.barros@asa.cv',
-        'valnir.morais@asa.cv'
+        'valnir.morais@asa.cv',
+        'adilson.vaz@asa.cv'
       )
       on conflict (id) do update
       set
@@ -185,6 +187,7 @@ end $$;
 -- CTA Operacional: Francisco Ramos
 -- CTA Operacional: Claudio Barros
 -- CTA OJT: Valnir Morais
+-- CTA Operacional: Adilson Carlos Gonçalves Vaz
 
 -- Horários operacionais do ACC Sal
 -- 07:30 - 13:30

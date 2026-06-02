@@ -20,6 +20,7 @@
 - Francisco Ramos — CTA Operacional — `francisco.ramos@asa.cv`
 - Claudio Barros — CTA Operacional — `claudio.barros@asa.cv`
 - Valnir Morais — CTA OJT — `valnir.morais@asa.cv`
+- Adilson Carlos Gonçalves Vaz — CTA Operacional — `adilson.vaz@asa.cv`
 
 ## Ficheiro SQL de apoio
 

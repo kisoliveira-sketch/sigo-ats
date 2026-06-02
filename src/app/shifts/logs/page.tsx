@@ -514,7 +514,7 @@ export default function ShiftLogsPage() {
             >
               <div className="space-y-5">
                 {activeLogs.length > 0 && (
-                  <div className="rounded-[0.9rem] border border-slate-200 bg-slate-50 px-4 py-4">
+                  <div className="app-surface-subtle rounded-[0.9rem] border border-slate-200 bg-slate-50 px-4 py-4">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
                       CTA ativos
                     </p>
@@ -523,7 +523,7 @@ export default function ShiftLogsPage() {
                       {activeLogs.map((log) => (
                         <div
                           key={log.id}
-                          className="rounded-[0.8rem] border border-slate-200 bg-white px-3 py-3"
+                          className="app-surface-subtle rounded-[0.8rem] border border-slate-200 bg-white px-3 py-3"
                         >
                           <div className="flex items-center justify-between gap-3">
                             <p className="text-[15px] font-semibold text-slate-900">

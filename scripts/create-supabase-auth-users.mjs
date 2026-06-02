@@ -30,6 +30,7 @@ const users = [
   { full_name: "Francisco Ramos", email: "francisco.ramos@asa.cv" },
   { full_name: "Claudio Barros", email: "claudio.barros@asa.cv" },
   { full_name: "Valnir Morais", email: "valnir.morais@asa.cv" },
+  { full_name: "Adilson Carlos Gonçalves Vaz", email: "adilson.vaz@asa.cv" },
   { full_name: "Abigail Fernandes", email: "abigail.fernandes@asa.cv" },
   { full_name: "Carlos Monteiro", email: "carlos.monteiro@asa.cv" },
   { full_name: "Jorge Semedo", email: "jorge.semedo@asa.cv" },

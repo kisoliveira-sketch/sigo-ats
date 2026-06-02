@@ -185,7 +185,7 @@ export function SlimStatCard({
   noWrap?: boolean;
 }) {
   return (
-    <div className="rounded-[0.8rem] border border-slate-200/90 bg-white/90 px-4 py-4 shadow-[0_18px_35px_-30px_rgba(15,23,42,0.35)] ring-1 ring-white/70 backdrop-blur">
+    <div className="app-surface-subtle rounded-[0.8rem] border border-slate-200/90 bg-white/90 px-4 py-4 shadow-[0_18px_35px_-30px_rgba(15,23,42,0.35)] ring-1 ring-white/70 backdrop-blur">
       <div className="flex items-center gap-3">
         <div className="shrink-0">{icon}</div>
         <div className="min-w-0">
@@ -298,9 +298,9 @@ export function AppFooter({ className = "" }: { className?: string }) {
           alt="KZO - Design & Comunicação"
           width={260}
           height={84}
-          className="h-14 w-auto object-contain sm:h-16"
+          className="kzo-footer-logo h-14 w-auto object-contain sm:h-16"
         />
-        <p className="text-[12px] leading-5 text-slate-500 sm:-ml-1">
+        <p className="kzo-footer-copy text-[12px] leading-5 text-slate-500 sm:-ml-1">
           © KZO - Design & Comunicação 2026 - todos os direitos reservados.
         </p>
       </div>
@@ -351,12 +351,12 @@ export function PageShell({
                   height={398}
                   className={
                     heroTighter
-                      ? "h-11 w-auto object-contain sm:h-12"
+                      ? "app-shell-brand-logo h-11 w-auto object-contain sm:h-12"
                       : heroThin
-                      ? "h-11 w-auto object-contain sm:h-12"
+                      ? "app-shell-brand-logo h-11 w-auto object-contain sm:h-12"
                       : compact
-                      ? "h-11 w-auto object-contain sm:h-12"
-                      : "h-11 w-auto object-contain sm:h-[3.25rem]"
+                      ? "app-shell-brand-logo h-11 w-auto object-contain sm:h-12"
+                      : "app-shell-brand-logo h-11 w-auto object-contain sm:h-[3.25rem]"
                   }
                 />
               </Link>

@@ -771,7 +771,7 @@ export default function ShiftRecordDetailPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-slate-50 text-slate-900">
+      <main className="app-atc-background min-h-screen text-slate-900">
         <div className="mx-auto max-w-6xl px-6 py-10">
           <div className="text-sm text-slate-500">
             A carregar registo ATS...
@@ -783,7 +783,7 @@ export default function ShiftRecordDetailPage() {
 
   if (!shift) {
     return (
-      <main className="min-h-screen bg-slate-50 text-slate-900">
+      <main className="app-atc-background min-h-screen text-slate-900">
         <div className="mx-auto max-w-6xl px-6 py-10">
           <div className="mb-4 text-sm text-red-700">
             {message || "Registo ATS não encontrado."}
@@ -800,7 +800,7 @@ export default function ShiftRecordDetailPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-900">
+    <main className="app-atc-background min-h-screen text-slate-900">
       <div className="mx-auto max-w-7xl px-6 py-8">
         <div className="no-print mb-4 overflow-hidden rounded-[1.05rem] border border-slate-200/80 bg-white/96 shadow-[0_24px_50px_-34px_rgba(15,23,42,0.22)] ring-1 ring-white/80">
           <div className="flex items-start justify-between gap-4 px-5 py-4">
@@ -811,7 +811,7 @@ export default function ShiftRecordDetailPage() {
                   alt="SIRO-ATS"
                   width={2048}
                   height={398}
-                  className="h-11 w-auto object-contain sm:h-12"
+                  className="app-shell-brand-logo h-11 w-auto object-contain sm:h-12"
                 />
               </Link>
             </div>
@@ -939,7 +939,7 @@ export default function ShiftRecordDetailPage() {
 
           <ReportSection title="Síntese operacional">
             <div className="grid gap-4 md:grid-cols-3">
-              <div className="rounded-[0.9rem] border border-slate-200 bg-[linear-gradient(135deg,_rgba(248,250,252,0.92)_0%,_rgba(255,255,255,0.96)_100%)] px-4 py-4 shadow-[0_14px_28px_-24px_rgba(15,23,42,0.16)]">
+              <div className="operational-summary-card rounded-[0.9rem] border border-slate-200 bg-[linear-gradient(135deg,_rgba(248,250,252,0.92)_0%,_rgba(255,255,255,0.96)_100%)] px-4 py-4 shadow-[0_14px_28px_-24px_rgba(15,23,42,0.16)]">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
                   Número de entradas
                 </div>
@@ -947,7 +947,7 @@ export default function ShiftRecordDetailPage() {
                   {entries.length}
                 </div>
               </div>
-              <div className="rounded-[0.9rem] border border-slate-200 bg-[linear-gradient(135deg,_rgba(248,250,252,0.92)_0%,_rgba(255,255,255,0.96)_100%)] px-4 py-4 shadow-[0_14px_28px_-24px_rgba(15,23,42,0.16)]">
+              <div className="operational-summary-card rounded-[0.9rem] border border-slate-200 bg-[linear-gradient(135deg,_rgba(248,250,252,0.92)_0%,_rgba(255,255,255,0.96)_100%)] px-4 py-4 shadow-[0_14px_28px_-24px_rgba(15,23,42,0.16)]">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
                   Nível mais elevado
                 </div>
@@ -955,7 +955,7 @@ export default function ShiftRecordDetailPage() {
                   {occurrenceLevelSummary}
                 </div>
               </div>
-              <div className="rounded-[0.9rem] border border-slate-200 bg-[linear-gradient(135deg,_rgba(248,250,252,0.92)_0%,_rgba(255,255,255,0.96)_100%)] px-4 py-4 shadow-[0_14px_28px_-24px_rgba(15,23,42,0.16)]">
+              <div className="operational-summary-card rounded-[0.9rem] border border-slate-200 bg-[linear-gradient(135deg,_rgba(248,250,252,0.92)_0%,_rgba(255,255,255,0.96)_100%)] px-4 py-4 shadow-[0_14px_28px_-24px_rgba(15,23,42,0.16)]">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
                   Seguimento pendente
                 </div>
