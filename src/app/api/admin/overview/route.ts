@@ -224,6 +224,7 @@ export async function GET(request: NextRequest) {
 
       return {
         id: occurrence.id,
+        shift_id: occurrence.shift_id,
         occurrence_number: occurrence.occurrence_number,
         occurrence_at_utc: occurrence.occurrence_at_utc,
         severity: occurrence.severity,

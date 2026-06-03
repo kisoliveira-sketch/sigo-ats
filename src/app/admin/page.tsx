@@ -106,6 +106,7 @@ type RecentShift = {
 
 type RecentOccurrence = {
   id: number;
+  shift_id: number | null;
   occurrence_number: string | null;
   occurrence_at_utc: string | null;
   severity: string | null;
@@ -244,6 +245,17 @@ function HistoryIcon() {
   );
 }
 
+function ChevronIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-3.5 w-3.5 fill-none stroke-current stroke-[2.2] [stroke-linecap:round] [stroke-linejoin:round]"
+    >
+      <path d="m9 6 6 6-6 6" />
+    </svg>
+  );
+}
+
 function TrashListIcon() {
   return (
     <svg
@@ -362,6 +374,7 @@ export default function AdminPage() {
   const [showSecurityNotice, setShowSecurityNotice] = useState(true);
   const [pendingAction, setPendingAction] = useState<PendingAdminAction | null>(null);
   const [actionCountdown, setActionCountdown] = useState(20);
+  const [expandedAuditShiftIds, setExpandedAuditShiftIds] = useState<number[]>([]);
 
   const systemStats = useMemo(
     () => [
@@ -482,6 +495,14 @@ export default function AdminPage() {
     if (userSortKey !== key) return "↕";
     return userSortDirection === "asc" ? "↑" : "↓";
   };
+
+  const toggleAuditShiftExpansion = useCallback((shiftId: number) => {
+    setExpandedAuditShiftIds((current) =>
+      current.includes(shiftId)
+        ? current.filter((id) => id !== shiftId)
+        : [...current, shiftId],
+    );
+  }, []);
 
   useEffect(() => {
     if (!pendingAction) return;
@@ -1370,7 +1391,7 @@ export default function AdminPage() {
               <select
                 value={newUserRole}
                 onChange={(e) => setNewUserRole(e.target.value)}
-                className="w-full rounded-[0.75rem] border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900"
+                className="h-[56px] w-full rounded-[0.75rem] border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900"
               >
                 <option value="">Selecionar role</option>
                 {(dashboard?.roleOptions ?? []).map((role) => (
@@ -1387,7 +1408,7 @@ export default function AdminPage() {
               <select
                 value={newUserUnitId}
                 onChange={(e) => setNewUserUnitId(e.target.value)}
-                className="w-full rounded-[0.75rem] border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900"
+                className="h-[56px] w-full rounded-[0.75rem] border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900"
               >
                 <option value="">Selecionar órgão ATS</option>
                 {(cleanupOverview?.units ?? []).map((unit) => (
@@ -1402,7 +1423,7 @@ export default function AdminPage() {
                 type="button"
                 onClick={handleCreateUser}
                 disabled={userSaving || loading}
-                className="inline-flex w-full items-center justify-center rounded-[0.8rem] border border-[#1d4f91] bg-[#1d4f91] px-4 py-2.5 text-[14px] font-semibold text-white transition duration-200 hover:-translate-y-0.5 hover:border-[#163d70] hover:bg-[#163d70] disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex h-[56px] w-full items-center justify-center rounded-[0.8rem] border border-[#1d4f91] bg-[#1d4f91] px-4 py-2.5 text-[14px] font-semibold text-white transition duration-200 hover:-translate-y-0.5 hover:border-[#163d70] hover:bg-[#163d70] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {userSaving ? "A criar..." : "Criar utilizador"}
               </button>
@@ -1613,6 +1634,7 @@ export default function AdminPage() {
                   const relatedOccurrences = (dashboard?.recentOccurrences ?? []).filter(
                     (occurrence) => occurrence.shift_code === shift.shift_code,
                   );
+                  const isExpanded = expandedAuditShiftIds.includes(shift.id);
 
                   return (
                     <div
@@ -1658,41 +1680,72 @@ export default function AdminPage() {
                                 : "Ainda não validado"}
                           </div>
                         </div>
-                        <div className="rounded-[0.75rem] border border-slate-200/80 bg-white/70 px-3 py-2">
-                          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                            Ocorrências ATS
+                        {relatedOccurrences.length ? (
+                          <button
+                            type="button"
+                            onClick={() => toggleAuditShiftExpansion(shift.id)}
+                            className="rounded-[0.75rem] border border-slate-200/80 bg-white/70 px-3 py-2 text-left transition duration-200 hover:border-slate-300 hover:bg-white/90"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                                  Ocorrências ATS
+                                </div>
+                                <div className="mt-1 text-[13px] font-medium text-slate-700">
+                                  {relatedOccurrences.length} registada(s)
+                                </div>
+                              </div>
+                              <span
+                                className={`inline-flex h-7 w-7 items-center justify-center rounded-[0.65rem] border border-slate-200 bg-slate-50 text-[16px] font-semibold text-slate-500 transition duration-200 ${
+                                  isExpanded ? "rotate-90 text-slate-700" : "text-slate-500"
+                                }`}
+                                aria-hidden="true"
+                              >
+                                <ChevronIcon />
+                              </span>
+                            </div>
+                          </button>
+                        ) : (
+                          <div className="rounded-[0.75rem] border border-slate-200/80 bg-white/70 px-3 py-2">
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                              Ocorrências ATS
+                            </div>
+                            <div className="mt-1 text-[13px] font-medium text-slate-700">
+                              Sem ocorrências
+                            </div>
                           </div>
-                          <div className="mt-1 text-[13px] font-medium text-slate-700">
-                            {relatedOccurrences.length
-                              ? `${relatedOccurrences.length} registada(s)`
-                              : "Sem ocorrências"}
-                          </div>
-                        </div>
+                        )}
                       </div>
 
                       {relatedOccurrences.length ? (
-                        <div className="mt-3 rounded-[0.8rem] border border-slate-200/80 bg-white/75 px-3 py-3">
-                          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                            Ocorrências do turno
-                          </div>
-                          <div className="mt-2 space-y-2">
-                            {relatedOccurrences.map((occurrence, index) => (
-                              <div
-                                key={occurrence.id}
-                                className="rounded-[0.72rem] border border-slate-200/80 bg-slate-50/80 px-3 py-2 text-[13px] text-slate-700"
-                              >
-                                <span className="font-semibold text-slate-800">
-                                  {occurrence.occurrence_number || `OCC ${index + 1}`}
-                                </span>
-                                {" - "}
-                                <span>
-                                  {occurrence.occurrence_category?.name ||
-                                    occurrence.severity ||
-                                    "Tipo não indicado"}
-                                </span>
+                        <div className="relative">
+                          {isExpanded ? (
+                            <div className="mt-2 ml-auto w-full max-w-[22rem] rounded-[0.8rem] border border-slate-200 bg-white shadow-[0_18px_36px_-24px_rgba(15,23,42,0.24)]">
+                              <div className="max-h-56 overflow-y-auto p-2">
+                                {relatedOccurrences.map((occurrence, index) => (
+                                  <Link
+                                    key={occurrence.id}
+                                    href={
+                                      occurrence.shift_id
+                                        ? `/occurrences/${occurrence.shift_id}/entries/${occurrence.id}/edit`
+                                        : "/occurrences"
+                                    }
+                                    className="block rounded-[0.65rem] px-3 py-2 text-[13px] text-slate-700 transition duration-150 hover:bg-slate-50 hover:text-slate-900"
+                                  >
+                                    <span className="font-semibold text-slate-800">
+                                      {occurrence.occurrence_number || `OCC ${index + 1}`}
+                                    </span>
+                                    {" - "}
+                                    <span>
+                                      {occurrence.occurrence_category?.name ||
+                                        occurrence.severity ||
+                                        "Tipo não indicado"}
+                                    </span>
+                                  </Link>
+                                ))}
                               </div>
-                            ))}
-                          </div>
+                            </div>
+                          ) : null}
                         </div>
                       ) : null}
                     </div>
