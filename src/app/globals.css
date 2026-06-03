@@ -410,46 +410,46 @@ html[data-sigo-theme="dark"] body {
     background-color: rgba(39, 59, 90, 0.84) !important;
 }
 
-:is(.dashboard-theme-dark, html[data-sigo-theme="dark"]) [class*="bg-[#eef4fb]"] {
+:is(.dashboard-theme-dark, html[data-sigo-theme="dark"]) [class~="bg-[#eef4fb]"] {
     background-color: var(--dashboard-dark-accent-soft) !important;
 }
 
-:is(.dashboard-theme-dark, html[data-sigo-theme="dark"]) [class*="bg-[#1d4f91]"] {
+:is(.dashboard-theme-dark, html[data-sigo-theme="dark"]) [class~="bg-[#1d4f91]"] {
     background-color: #315f9e !important;
     border-color: rgba(125, 183, 255, 0.3) !important;
 }
 
-:is(.dashboard-theme-dark, html[data-sigo-theme="dark"]) [class*="hover:bg-[#2a67ba]"]:hover,
-:is(.dashboard-theme-dark, html[data-sigo-theme="dark"]) [class*="hover:bg-[#163d70]"]:hover {
+:is(.dashboard-theme-dark, html[data-sigo-theme="dark"]) [class~="hover:bg-[#2a67ba]"]:hover,
+:is(.dashboard-theme-dark, html[data-sigo-theme="dark"]) [class~="hover:bg-[#163d70]"]:hover {
     background-color: #3a73ba !important;
 }
 
-:is(.dashboard-theme-dark, html[data-sigo-theme="dark"]) [class*="bg-[#f28c28]"] {
+:is(.dashboard-theme-dark, html[data-sigo-theme="dark"]) [class~="bg-[#f28c28]"] {
     background-color: #c7660f !important;
     border-color: rgba(242, 140, 40, 0.46) !important;
 }
 
-:is(.dashboard-theme-dark, html[data-sigo-theme="dark"]) [class*="hover:bg-[#f28c28]"]:hover,
-:is(.dashboard-theme-dark, html[data-sigo-theme="dark"]) [class*="hover:bg-[#dd7818]"]:hover {
+:is(.dashboard-theme-dark, html[data-sigo-theme="dark"]) [class~="hover:bg-[#f28c28]"]:hover,
+:is(.dashboard-theme-dark, html[data-sigo-theme="dark"]) [class~="hover:bg-[#dd7818]"]:hover {
     background-color: #de7414 !important;
     border-color: rgba(242, 140, 40, 0.66) !important;
 }
 
-:is(.dashboard-theme-dark, html[data-sigo-theme="dark"]) [class*="bg-[#1d4f91]"],
-:is(.dashboard-theme-dark, html[data-sigo-theme="dark"]) [class*="bg-[#f28c28]"],
-:is(.dashboard-theme-dark, html[data-sigo-theme="dark"]) [class*="hover:bg-[#2a67ba]"],
-:is(.dashboard-theme-dark, html[data-sigo-theme="dark"]) [class*="hover:bg-[#163d70]"],
-:is(.dashboard-theme-dark, html[data-sigo-theme="dark"]) [class*="hover:bg-[#f28c28]"],
-:is(.dashboard-theme-dark, html[data-sigo-theme="dark"]) [class*="hover:bg-[#dd7818]"] {
+:is(.dashboard-theme-dark, html[data-sigo-theme="dark"]) [class~="bg-[#1d4f91]"],
+:is(.dashboard-theme-dark, html[data-sigo-theme="dark"]) [class~="bg-[#f28c28]"],
+:is(.dashboard-theme-dark, html[data-sigo-theme="dark"]) [class~="hover:bg-[#2a67ba]"],
+:is(.dashboard-theme-dark, html[data-sigo-theme="dark"]) [class~="hover:bg-[#163d70]"],
+:is(.dashboard-theme-dark, html[data-sigo-theme="dark"]) [class~="hover:bg-[#f28c28]"],
+:is(.dashboard-theme-dark, html[data-sigo-theme="dark"]) [class~="hover:bg-[#dd7818]"] {
     color: #fff !important;
 }
 
-:is(.dashboard-theme-dark, html[data-sigo-theme="dark"]) [class*="bg-[#1d4f91]"] *,
-:is(.dashboard-theme-dark, html[data-sigo-theme="dark"]) [class*="bg-[#f28c28]"] * {
+:is(.dashboard-theme-dark, html[data-sigo-theme="dark"]) [class~="bg-[#1d4f91]"] *,
+:is(.dashboard-theme-dark, html[data-sigo-theme="dark"]) [class~="bg-[#f28c28]"] * {
     color: inherit !important;
 }
 
-:is(.dashboard-theme-dark, html[data-sigo-theme="dark"]) [class*="hover:bg-[#eef4fb]"]:hover {
+:is(.dashboard-theme-dark, html[data-sigo-theme="dark"]) [class~="hover:bg-[#eef4fb]"]:hover {
     background-color: rgba(67, 107, 166, 0.34) !important;
 }
 
@@ -503,10 +503,10 @@ html[data-sigo-theme="dark"] body {
 }
 
 :is(.dashboard-theme-dark, html[data-sigo-theme="dark"]) .dashboard-primary-action-btn {
-    background: linear-gradient(180deg, #d87922 0%, #bf6412 100%) !important;
-    border-color: rgba(255, 187, 120, 0.34) !important;
+    background: linear-gradient(180deg, #315f9e 0%, #274d82 100%) !important;
+    border-color: rgba(125, 183, 255, 0.3) !important;
     box-shadow:
-        0 20px 38px -22px rgba(191, 100, 18, 0.72),
+        0 20px 38px -22px rgba(29, 79, 145, 0.62),
         0 1px 0 rgba(255, 255, 255, 0.1) inset !important;
 }
 

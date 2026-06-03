@@ -109,6 +109,10 @@ type RecentOccurrence = {
   occurrence_number: string | null;
   occurrence_at_utc: string | null;
   severity: string | null;
+  occurrence_category: {
+    name: string | null;
+    code: string | null;
+  } | null;
   ats_unit: {
     id: number;
     name: string;
@@ -173,7 +177,7 @@ type PendingAdminAction =
       confirmLabel: string;
     };
 
-const ADMIN_USERS_PAGE_SIZE = 20;
+const ADMIN_USERS_PAGE_SIZE = 10;
 
 function DatabaseIcon() {
   return (
@@ -267,8 +271,16 @@ function SearchIcon() {
 }
 
 function SortIndicator({ value }: { value: string }) {
+  const isActive = value !== "↕";
+
   return (
-    <span className="inline-flex h-4 w-4 items-center justify-center rounded-[0.32rem] border border-slate-200 bg-slate-50 text-[10px] font-bold leading-none text-slate-400">
+    <span
+      className={`inline-flex h-4.5 w-4.5 items-center justify-center rounded-[0.35rem] border text-[10px] font-bold leading-none shadow-[0_1px_2px_rgba(15,23,42,0.04)] ${
+        isActive
+          ? "border-[#2a67ba]/35 bg-[#eef4fb] text-[#1d4f91]"
+          : "border-slate-300 bg-white text-slate-500"
+      }`}
+    >
       {value}
     </span>
   );
@@ -1459,40 +1471,40 @@ export default function AdminPage() {
           </div>
 
           <div className="app-surface-subtle mt-4 rounded-[0.95rem] border border-slate-200 bg-white">
-            <div className="grid grid-cols-[1.4fr_1.1fr_0.8fr_1fr_0.7fr] gap-4 border-b border-slate-200/30 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+            <div className="grid grid-cols-[1.4fr_1.1fr_0.8fr_1fr_0.7fr] gap-4 border-b border-slate-200/30 bg-slate-50/70 px-4 py-3.5 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-600">
               <button
                 type="button"
                 onClick={() => toggleUserSort("user")}
-                className="inline-flex items-center gap-1.5 text-left transition hover:text-slate-700"
+                className="inline-flex items-center gap-1.5 text-left uppercase transition hover:text-slate-800"
               >
-                <span>Utilizador</span>
+                <span>UTILIZADOR</span>
                 <SortIndicator value={getUserSortIndicator("user")} />
               </button>
               <button
                 type="button"
                 onClick={() => toggleUserSort("unit")}
-                className="inline-flex items-center gap-1.5 text-left transition hover:text-slate-700"
+                className="inline-flex items-center gap-1.5 text-left uppercase transition hover:text-slate-800"
               >
-                <span>Órgão ATS</span>
+                <span>ÓRGÃO ATS</span>
                 <SortIndicator value={getUserSortIndicator("unit")} />
               </button>
               <button
                 type="button"
                 onClick={() => toggleUserSort("role")}
-                className="inline-flex items-center gap-1.5 text-left transition hover:text-slate-700"
+                className="inline-flex items-center gap-1.5 text-left uppercase transition hover:text-slate-800"
               >
-                <span>Role</span>
+                <span>ROLE</span>
                 <SortIndicator value={getUserSortIndicator("role")} />
               </button>
               <button
                 type="button"
                 onClick={() => toggleUserSort("status")}
-                className="inline-flex items-center gap-1.5 text-left transition hover:text-slate-700"
+                className="inline-flex items-center gap-1.5 text-left uppercase transition hover:text-slate-800"
               >
-                <span>Estado</span>
+                <span>ESTADO</span>
                 <SortIndicator value={getUserSortIndicator("status")} />
               </button>
-              <span className="text-right">Ações</span>
+              <span className="text-right uppercase">AÇÕES</span>
             </div>
             <div className="divide-y divide-slate-200/30">
               {paginatedUsers.map((user) => (
@@ -1586,70 +1598,111 @@ export default function AdminPage() {
             </SoftIcon>
           }
           title="Auditoria operacional"
-          subtitle="Leitura rápida da atividade recente do sistema, com foco em turnos e ocorrências."
+          subtitle="Turnos recentes com o respetivo contexto operacional, incluindo ocorrências associadas."
         >
-          <div className="grid gap-4 xl:grid-cols-2">
-            <div className="app-surface-subtle rounded-[0.95rem] border border-slate-200 bg-white">
-              <div className="border-b border-slate-200 px-4 py-3 text-[13px] font-semibold text-slate-700">
-                Turnos recentes
-              </div>
-              <div className="divide-y divide-slate-200">
-                {(dashboard?.recentShifts ?? []).map((shift) => (
-                  <div key={shift.id} className="px-4 py-3 text-sm text-slate-600">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div className="font-medium text-slate-950">
-                        {shift.shift_code} · {shift.ats_unit?.code || "—"}
-                      </div>
-                      <span
-                        className={`rounded-[0.7rem] border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${getStatusTone(
-                          shift.status,
-                        )}`}
-                      >
-                        {shift.status}
-                      </span>
-                    </div>
-                    <div className="mt-2 grid gap-1 text-[13px] text-slate-500">
-                      <div>Data operacional: {shift.operational_date}</div>
-                      <div>Aberto por: {shift.opened_by_name}</div>
-                      <div>
-                        Validado por:{" "}
-                        {shift.validated_at_utc ? shift.validated_by_name : "Ainda não validado"}
-                      </div>
-                      <div>
-                        Fecho UTC: {shift.end_time_utc ? formatUtcDateTime(shift.end_time_utc) : "—"}
-                      </div>
-                    </div>
-                  </div>
-                ))}
+          <div className="app-surface-subtle rounded-[0.95rem] border border-slate-200 bg-white">
+            <div className="border-b border-slate-200 px-4 py-3">
+              <div className="text-[13px] font-semibold text-slate-800">Atividade recente por turno</div>
+              <div className="mt-1 text-[12px] text-slate-500">
+                Cada turno mostra o seu estado, responsáveis e resumo das ocorrências já registadas.
               </div>
             </div>
+            <div className="space-y-3 px-4 py-4">
+              {(dashboard?.recentShifts ?? []).length ? (
+                (dashboard?.recentShifts ?? []).map((shift) => {
+                  const relatedOccurrences = (dashboard?.recentOccurrences ?? []).filter(
+                    (occurrence) => occurrence.shift_code === shift.shift_code,
+                  );
 
-            <div className="app-surface-subtle rounded-[0.95rem] border border-slate-200 bg-white">
-              <div className="border-b border-slate-200 px-4 py-3 text-[13px] font-semibold text-slate-700">
-                Ocorrências recentes
-              </div>
-              <div className="divide-y divide-slate-200">
-                {(dashboard?.recentOccurrences ?? []).map((occurrence) => (
-                  <div key={occurrence.id} className="px-4 py-3 text-sm text-slate-600">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div className="font-medium text-slate-950">
-                        {occurrence.occurrence_number || "Sem número"} ·{" "}
-                        {occurrence.ats_unit?.code || "—"}
+                  return (
+                    <div
+                      key={shift.id}
+                      className="rounded-[0.95rem] border border-slate-200/70 bg-slate-50/70 px-4 py-4"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-[15px] font-semibold text-slate-950">
+                            {shift.shift_code}
+                          </div>
+                          <div className="mt-1 text-[12px] font-medium uppercase tracking-[0.08em] text-slate-500">
+                            {shift.ats_unit?.code || "—"} · {shift.operational_date}
+                          </div>
+                        </div>
+                        <span
+                          className={`rounded-[0.7rem] border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${getStatusTone(
+                            shift.status,
+                          )}`}
+                        >
+                          {shift.status}
+                        </span>
                       </div>
-                      <span className="rounded-[0.7rem] border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-blue-700">
-                        {occurrence.severity || "Sem gravidade"}
-                      </span>
-                    </div>
-                    <div className="mt-2 grid gap-1 text-[13px] text-slate-500">
-                      <div>Turno: {occurrence.shift_code}</div>
-                      <div>Autor: {occurrence.author_name}</div>
-                      <div>
-                        Hora UTC: {formatUtcDateTime(occurrence.occurrence_at_utc)}
+
+                      <div className="mt-3 grid gap-2 lg:grid-cols-3">
+                        <div className="rounded-[0.75rem] border border-slate-200/80 bg-white/70 px-3 py-2">
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                            Aberto por
+                          </div>
+                          <div className="mt-1 text-[13px] font-medium text-slate-700">
+                            {shift.opened_by_name}
+                          </div>
+                        </div>
+                        <div className="rounded-[0.75rem] border border-slate-200/80 bg-white/70 px-3 py-2">
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                            Último marco
+                          </div>
+                          <div className="mt-1 text-[13px] font-medium text-slate-700">
+                            {shift.end_time_utc
+                              ? `Fechado em ${formatUtcDateTime(shift.end_time_utc)}`
+                              : shift.validated_at_utc
+                                ? `Validado por ${shift.validated_by_name}`
+                                : "Ainda não validado"}
+                          </div>
+                        </div>
+                        <div className="rounded-[0.75rem] border border-slate-200/80 bg-white/70 px-3 py-2">
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                            Ocorrências ATS
+                          </div>
+                          <div className="mt-1 text-[13px] font-medium text-slate-700">
+                            {relatedOccurrences.length
+                              ? `${relatedOccurrences.length} registada(s)`
+                              : "Sem ocorrências"}
+                          </div>
+                        </div>
                       </div>
+
+                      {relatedOccurrences.length ? (
+                        <div className="mt-3 rounded-[0.8rem] border border-slate-200/80 bg-white/75 px-3 py-3">
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                            Ocorrências do turno
+                          </div>
+                          <div className="mt-2 space-y-2">
+                            {relatedOccurrences.map((occurrence, index) => (
+                              <div
+                                key={occurrence.id}
+                                className="rounded-[0.72rem] border border-slate-200/80 bg-slate-50/80 px-3 py-2 text-[13px] text-slate-700"
+                              >
+                                <span className="font-semibold text-slate-800">
+                                  {occurrence.occurrence_number || `OCC ${index + 1}`}
+                                </span>
+                                {" - "}
+                                <span>
+                                  {occurrence.occurrence_category?.name ||
+                                    occurrence.severity ||
+                                    "Tipo não indicado"}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
-                  </div>
-                ))}
-              </div>
+                  );
+                })
+              ) : (
+                <div className="rounded-[0.9rem] border border-dashed border-slate-200 px-4 py-5 text-sm text-slate-500">
+                  Sem turnos recentes para apresentar.
+                </div>
+              )}
             </div>
           </div>
         </SectionCard>

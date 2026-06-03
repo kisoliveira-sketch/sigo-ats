@@ -38,6 +38,16 @@ type OccurrenceRow = {
   created_by: string | null;
   ats_unit_id: number | null;
   shift_id: number | null;
+  occurrence_categories:
+    | {
+        name: string | null;
+        code: string | null;
+      }
+    | {
+        name: string | null;
+        code: string | null;
+      }[]
+    | null;
 };
 
 type PositionLogRow = {
@@ -94,7 +104,7 @@ export async function GET(request: NextRequest) {
         auth.adminClient
           .from("occurrences")
           .select(
-            "id, occurrence_number, occurrence_at_utc, severity, created_by, ats_unit_id, shift_id",
+            "id, occurrence_number, occurrence_at_utc, severity, created_by, ats_unit_id, shift_id, occurrence_categories:category_id ( name, code )",
           )
           .order("occurrence_at_utc", { ascending: false }),
         auth.adminClient
@@ -208,12 +218,21 @@ export async function GET(request: NextRequest) {
       const unit = occurrence.ats_unit_id ? unitsById.get(occurrence.ats_unit_id) : null;
       const shift = occurrence.shift_id ? shiftsById.get(occurrence.shift_id) : null;
       const author = occurrence.created_by ? profilesById.get(occurrence.created_by) : null;
+      const category = Array.isArray(occurrence.occurrence_categories)
+        ? occurrence.occurrence_categories[0] ?? null
+        : occurrence.occurrence_categories;
 
       return {
         id: occurrence.id,
         occurrence_number: occurrence.occurrence_number,
         occurrence_at_utc: occurrence.occurrence_at_utc,
         severity: occurrence.severity,
+        occurrence_category: category
+          ? {
+              name: category.name,
+              code: category.code,
+            }
+          : null,
         ats_unit: unit
           ? {
               id: unit.id,
