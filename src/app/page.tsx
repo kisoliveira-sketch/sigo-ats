@@ -74,15 +74,16 @@ function formatTimeByPreference(value: string | null, timeDisplayMode: TimeDispl
   return `${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}`;
 }
 
-function formatEventByPreference(
+function getEventSummaryParts(
   value: string | null,
   timeDisplayMode: TimeDisplayMode,
 ) {
-  if (!value) return "—";
+  if (!value) {
+    return { top: "—", bottom: "" };
+  }
 
   const date = new Date(value);
   const now = new Date();
-
   const sameDay =
     timeDisplayMode === "local"
       ? date.getFullYear() === now.getFullYear() &&
@@ -95,12 +96,18 @@ function formatEventByPreference(
   const timeLabel = formatTimeByPreference(value, timeDisplayMode);
 
   if (sameDay) {
-    return timeLabel;
+    return { top: "Hoje", bottom: timeLabel };
   }
 
   return timeDisplayMode === "local"
-    ? `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} ${timeLabel}`
-    : `${pad(date.getUTCDate())}/${pad(date.getUTCMonth() + 1)}/${date.getUTCFullYear()} ${timeLabel}`;
+    ? {
+        top: `${pad(date.getDate())}/${pad(date.getMonth() + 1)}`,
+        bottom: timeLabel,
+      }
+    : {
+        top: `${pad(date.getUTCDate())}/${pad(date.getUTCMonth() + 1)}`,
+        bottom: timeLabel,
+      };
 }
 
 function readStoredTimeDisplayMode(): TimeDisplayMode {
@@ -493,6 +500,11 @@ export default function Home() {
         ? "dark"
         : "light"
       : themeDisplayMode;
+
+  const lastEventSummary = useMemo(
+    () => getEventSummaryParts(lastOperationalEventAt, timeDisplayMode),
+    [lastOperationalEventAt, timeDisplayMode],
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1540,7 +1552,7 @@ export default function Home() {
                         <>
                           Turnos
                           <br />
-                          abertos
+                          Abertos
                         </>
                       ),
                       icon: <CalendarIcon />,
@@ -1549,7 +1561,7 @@ export default function Home() {
                     {
                       id: "occurrences",
                       value: String(activeOccurrencesCount),
-                      label: "Ocorrências registadas",
+                      label: "Ocorrências Registadas",
                       icon: <FileIcon />,
                       tone: "text-[#1d4f91]",
                     },
@@ -1562,13 +1574,10 @@ export default function Home() {
                     },
                     {
                       id: "last-update",
-                      value: formatEventByPreference(
-                        lastOperationalEventAt,
-                        timeDisplayMode,
-                      ),
+                      value: "—",
                       label: (
                         <>
-                          Último evento
+                          Último Evento
                           <br />
                           ({timeDisplayMode === "utc" ? "UTC" : "Local"})
                         </>
@@ -1586,10 +1595,21 @@ export default function Home() {
                       >
                         {item.icon}
                       </div>
-                      <p className="digital-number mt-3 flex min-h-[40px] w-full items-center justify-center text-center text-[1.15rem] text-slate-900">
-                        {item.value}
-                      </p>
-                      <p className="mt-0.5 w-[7.75rem] text-center text-[11.5px] leading-[1.35] text-slate-600">
+                      {item.id === "last-update" ? (
+                        <div className="mt-3 flex min-h-[40px] w-full flex-col items-center justify-center text-center">
+                          <p className="digital-number text-[1.15rem] leading-none text-slate-900">
+                            {lastEventSummary.top}
+                          </p>
+                          <p className="digital-number mt-1 text-[1.15rem] leading-none text-slate-900">
+                            {lastEventSummary.bottom || "—"}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="digital-number mt-3 flex min-h-[40px] w-full items-center justify-center text-center text-[1.15rem] text-slate-900">
+                          {item.value}
+                        </p>
+                      )}
+                      <p className="mt-1 w-[8.5rem] text-center text-[13px] leading-[1.35] text-slate-600">
                         {item.label}
                       </p>
                     </div>
