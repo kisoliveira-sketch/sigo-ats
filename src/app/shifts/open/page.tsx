@@ -38,6 +38,7 @@ type AtsUnit = {
   id: number;
   name: string;
   code: string;
+  unit_type?: string | null;
 };
 
 type UnitUser = {
@@ -84,6 +85,11 @@ const TWR_AIPNM_SHIFT_OPTIONS: ShiftOption[] = [
   { label: "00:30 - 08:30", suffix: "0030/0830", start: "00:30" },
 ];
 
+const TWR_BVC_SHIFT_OPTIONS: ShiftOption[] = [
+  { label: "08:00 - 13:00", suffix: "0800/1300", start: "08:00" },
+  { label: "13:00 - 19:00", suffix: "1300/1900", start: "13:00" },
+];
+
 const DEFAULT_MEMBERS: ShiftMember[] = [
   { user_id: "", role_in_shift: "Supervisor" },
   { user_id: "", role_in_shift: "CTA Operacional" },
@@ -109,14 +115,19 @@ export default function OpenShiftPage() {
 
   const availableShiftOptions = useMemo(
     () =>
-      atsUnit?.code === "ACC_SAL"
+      atsUnit?.code === "ACC_SAL" || atsUnit?.code === "TWR_SAL"
         ? ACC_SAL_SHIFT_OPTIONS
-        : atsUnit?.code === "TWR_AIPNM"
+        : atsUnit?.code === "TWR_BVC"
+          ? TWR_BVC_SHIFT_OPTIONS
+        : atsUnit?.code?.startsWith("TWR_") ||
+            atsUnit?.unit_type?.toUpperCase() === "TWR" ||
+            atsUnit?.unit_type?.toUpperCase() === "TOWER" ||
+            atsUnit?.unit_type?.toUpperCase() === "AERODROME_CONTROL_TOWER"
           ? TWR_AIPNM_SHIFT_OPTIONS
         : atsUnit?.code === "AICE"
           ? AICE_SHIFT_OPTIONS
           : AICE_SHIFT_OPTIONS,
-    [atsUnit?.code],
+    [atsUnit?.code, atsUnit?.unit_type],
   );
 
   const effectiveSelectedShiftLabel = useMemo(() => {
@@ -183,7 +194,7 @@ export default function OpenShiftPage() {
 
       const { data: unitData, error: unitError } = await supabase
         .from("ats_units")
-        .select("id, name, code")
+        .select("id, name, code, unit_type")
         .eq("id", data.ats_unit_id)
         .maybeSingle();
 
