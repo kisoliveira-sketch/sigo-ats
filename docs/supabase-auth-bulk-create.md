@@ -65,3 +65,7 @@ Depois de criar os utilizadores Auth, correr os SQLs de ambiente para preencher 
 Para uniformizar nomes já existentes segundo o AIP, correr também:
 
 - [/Users/kisoroliveira/Desktop/siro-ats/supabase/normalize-ats-unit-names.sql](/Users/kisoroliveira/Desktop/siro-ats/supabase/normalize-ats-unit-names.sql)
+
+Se quiseres uniformizar também o código legado da unidade AICE:
+
+- [/Users/kisoroliveira/Desktop/siro-ats/supabase/rename-aice-unit-code.sql](/Users/kisoroliveira/Desktop/siro-ats/supabase/rename-aice-unit-code.sql)

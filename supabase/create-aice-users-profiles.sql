@@ -13,11 +13,17 @@ begin
   select id
   into target_ats_unit_id
   from public.ats_units
-  where code = 'AICE_TWR'
+  where code in ('TWR_AICE', 'AICE_TWR', 'AICE')
+  order by case code
+    when 'TWR_AICE' then 1
+    when 'AICE_TWR' then 2
+    when 'AICE' then 3
+    else 99
+  end
   limit 1;
 
   if target_ats_unit_id is null then
-    raise exception 'ATS unit with code % was not found.', 'AICE_TWR';
+    raise exception 'ATS unit with code % was not found.', 'TWR_AICE';
   end if;
 
   select enumlabel
