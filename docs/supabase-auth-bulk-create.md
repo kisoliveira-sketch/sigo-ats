@@ -61,3 +61,7 @@ Depois de criar os utilizadores Auth, correr os SQLs de ambiente para preencher 
 - [/Users/kisoroliveira/Desktop/siro-ats/supabase/create-twr-aipnm-environment.sql](/Users/kisoroliveira/Desktop/siro-ats/supabase/create-twr-aipnm-environment.sql)
 - [/Users/kisoroliveira/Desktop/siro-ats/supabase/create-twr-sal-environment.sql](/Users/kisoroliveira/Desktop/siro-ats/supabase/create-twr-sal-environment.sql)
 - [/Users/kisoroliveira/Desktop/siro-ats/supabase/create-twr-bvc-environment.sql](/Users/kisoroliveira/Desktop/siro-ats/supabase/create-twr-bvc-environment.sql)
+
+Para uniformizar nomes já existentes segundo o AIP, correr também:
+
+- [/Users/kisoroliveira/Desktop/siro-ats/supabase/normalize-ats-unit-names.sql](/Users/kisoroliveira/Desktop/siro-ats/supabase/normalize-ats-unit-names.sql)

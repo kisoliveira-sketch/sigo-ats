@@ -2,7 +2,7 @@
 
 ## Unidade
 
-- Nome: `Torre da Praia`
+- Nome: `PRAIA TOWER`
 - Código: `TWR_AIPNM`
 
 ## Horários de turno (UTC)
@@ -34,6 +34,6 @@ Usar:
 
 Esse script:
 
-- cria/atualiza a unidade `Torre da Praia`
+- cria/atualiza a unidade `PRAIA TOWER`
 - associa os utilizadores existentes em `auth.users` à unidade
 - prepara os `profiles` para uso na app

@@ -2,7 +2,7 @@
 
 ## Unidade
 
-- Nome: `Amilcar Cabral Tower`
+- Nome: `AMILCABRAL TOWER`
 - Código: `TWR_SAL`
 
 ## Horários de turno (UTC)
@@ -24,5 +24,5 @@ Usar:
 
 Esse script:
 
-- cria/atualiza a unidade `Amilcar Cabral Tower`
+- cria/atualiza a unidade `AMILCABRAL TOWER`
 - prepara o ambiente base para futura associação de utilizadores

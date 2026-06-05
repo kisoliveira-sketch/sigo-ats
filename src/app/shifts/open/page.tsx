@@ -86,8 +86,7 @@ const TWR_AIPNM_SHIFT_OPTIONS: ShiftOption[] = [
 ];
 
 const TWR_BVC_SHIFT_OPTIONS: ShiftOption[] = [
-  { label: "08:00 - 13:00", suffix: "0800/1300", start: "08:00" },
-  { label: "13:00 - 19:00", suffix: "1300/1900", start: "13:00" },
+  { label: "09:00 - 19:00", suffix: "0900/1900", start: "09:00" },
 ];
 
 const DEFAULT_MEMBERS: ShiftMember[] = [
@@ -119,14 +118,16 @@ export default function OpenShiftPage() {
         ? ACC_SAL_SHIFT_OPTIONS
         : atsUnit?.code === "TWR_BVC"
           ? TWR_BVC_SHIFT_OPTIONS
+        : atsUnit?.code === "AICE" ||
+            atsUnit?.code === "AICE_TWR" ||
+            atsUnit?.code === "TWR_AICE"
+          ? AICE_SHIFT_OPTIONS
         : atsUnit?.code?.startsWith("TWR_") ||
             atsUnit?.unit_type?.toUpperCase() === "TWR" ||
             atsUnit?.unit_type?.toUpperCase() === "TOWER" ||
             atsUnit?.unit_type?.toUpperCase() === "AERODROME_CONTROL_TOWER"
           ? TWR_AIPNM_SHIFT_OPTIONS
-        : atsUnit?.code === "AICE"
-          ? AICE_SHIFT_OPTIONS
-          : AICE_SHIFT_OPTIONS,
+        : AICE_SHIFT_OPTIONS,
     [atsUnit?.code, atsUnit?.unit_type],
   );
 

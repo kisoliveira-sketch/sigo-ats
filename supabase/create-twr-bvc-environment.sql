@@ -60,7 +60,7 @@ begin
     execute format(
       $sql$
         insert into public.ats_units (name, code, unit_type)
-        values ('Boa Vista TWR', 'TWR_BVC', %L::%I.%I)
+        values ('BOAVISTA TWR', 'TWR_BVC', %L::%I.%I)
         on conflict (code) do update
         set
           name = excluded.name,
@@ -72,7 +72,7 @@ begin
     );
   else
     insert into public.ats_units (name, code, unit_type)
-    values ('Boa Vista TWR', 'TWR_BVC', target_unit_type)
+    values ('BOAVISTA TWR', 'TWR_BVC', target_unit_type)
     on conflict (code) do update
     set
       name = excluded.name,
@@ -91,8 +91,7 @@ begin
 end $$;
 
 -- Horários operacionais da TWR BVC (UTC)
--- 08:00 - 13:00
--- 13:00 - 19:00
+-- 09:00 - 19:00
 
 -- Nota
 -- Este script cria apenas o ambiente base.

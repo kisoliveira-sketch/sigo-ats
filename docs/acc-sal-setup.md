@@ -30,6 +30,6 @@ Usar:
 
 Esse script:
 
-- cria/atualiza a unidade `ACC Sal`
+- cria/atualiza a unidade `SAL CONTROL`
 - associa os utilizadores existentes em `auth.users` à unidade
 - prepara os `profiles` para uso na app

@@ -61,7 +61,7 @@ begin
     execute format(
       $sql$
         insert into public.ats_units (name, code, unit_type)
-        values ('Torre da Praia', 'TWR_AIPNM', %L::%I.%I)
+        values ('PRAIA TOWER', 'TWR_AIPNM', %L::%I.%I)
         on conflict (code) do update
         set
           name = excluded.name,
@@ -73,7 +73,7 @@ begin
     );
   else
     insert into public.ats_units (name, code, unit_type)
-    values ('Torre da Praia', 'TWR_AIPNM', target_unit_type)
+    values ('PRAIA TOWER', 'TWR_AIPNM', target_unit_type)
     on conflict (code) do update
     set
       name = excluded.name,

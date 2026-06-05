@@ -2,13 +2,12 @@
 
 ## Unidade
 
-- Nome: `Boa Vista TWR`
+- Nome: `BOAVISTA TWR`
 - Código: `TWR_BVC`
 
 ## Horários de turno (UTC)
 
-- 08:00 - 13:00
-- 13:00 - 19:00
+- 09:00 - 19:00
 
 ## Utilizadores
 
@@ -22,5 +21,5 @@ Usar:
 
 Esse script:
 
-- cria/atualiza a unidade `Boa Vista TWR`
+- cria/atualiza a unidade `BOAVISTA TWR`
 - prepara o ambiente base para futura associação de utilizadores
