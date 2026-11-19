@@ -1,4 +1,4 @@
-import jsPDF from "jspdf";
+import { jsPDF } from "jspdf";
 
 type ShiftDetail = {
   shift_code: string;
@@ -125,40 +125,57 @@ export function exportShiftReportPdf({
   };
 
   const addSectionTitle = (title: string) => {
-    ensureSpace(8);
+    ensureSpace(13);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
     doc.text(title, left, y);
     y += 4;
   };
 
+  const lineHeight = 4.2;
+
+  const drawLines = (
+    lines: string[],
+    x: number,
+    fontSize: number,
+    style: "normal" | "bold" = "normal",
+    firstLine?: () => void,
+  ) => {
+    lines.forEach((line, index) => {
+      ensureSpace(lineHeight);
+      if (index === 0) firstLine?.();
+      // A continued page redraws the header with its own font settings.
+      doc.setFont("helvetica", style);
+      doc.setFontSize(fontSize);
+      doc.text(line, x, y);
+      y += lineHeight;
+    });
+  };
+
   const addParagraph = (text: string, fontSize = 9, indent = 0) => {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(fontSize);
     const lines = doc.splitTextToSize(safe(text), width - indent) as string[];
-    const blockHeight = lines.length * 4.2;
-    ensureSpace(blockHeight + 2);
-    doc.text(lines, left + indent, y);
-    y += blockHeight + 1.5;
+    drawLines(lines, left + indent, fontSize);
+    y += 1.5;
   };
 
   const addField = (label: string, value: string) => {
+    const labelText = `${label}: `;
     doc.setFont("helvetica", "bold");
     doc.setFontSize(9);
-    const labelText = `${label}: `;
-    const labelWidth = doc.getTextWidth(labelText);
-
-    doc.text(labelText, left, y);
+    const valueOffset = doc.getTextWidth(labelText) + 1;
 
     doc.setFont("helvetica", "normal");
     const lines = doc.splitTextToSize(
       safe(value),
-      width - labelWidth - 2,
+      width - valueOffset - 1,
     ) as string[];
-    const blockHeight = Math.max(4.2, lines.length * 4.2);
-    ensureSpace(blockHeight + 1);
-    doc.text(lines, left + labelWidth + 1, y);
-    y += blockHeight;
+    drawLines(lines, left + valueOffset, 9, "normal", () => {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.text(labelText, left, y);
+    });
   };
 
   const addBlank = (space = 2) => {
@@ -212,22 +229,10 @@ export function exportShiftReportPdf({
     ensureSpace(12);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(9);
-    doc.text(
-      `${index + 1}. ${safe(entry.occurrence_number)} | ${formatUtcDateTime(entry.occurrence_at_utc)} | ${safe(entry.occurrence_categories?.name)} | ${safe(entry.severity)} | Follow-up: ${entry.requires_followup ? "Sim" : "Não"}`,
-      left,
-      y,
-    );
-    y += 4.5;
-
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8.8);
-    const summary = doc.splitTextToSize(
-      safe(entry.description_factual),
-      width,
-    ) as string[];
-    ensureSpace(summary.length * 4 + 2);
-    doc.text(summary, left, y);
-    y += summary.length * 4 + 1.5;
+    const heading = `${index + 1}. ${safe(entry.occurrence_number)} | ${formatUtcDateTime(entry.occurrence_at_utc)} | ${safe(entry.occurrence_categories?.name)} | ${safe(entry.severity)} | Follow-up: ${entry.requires_followup ? "Sim" : "Não"}`;
+    const headingLines = doc.splitTextToSize(heading, width) as string[];
+    drawLines(headingLines, left, 9, "bold");
+    addParagraph(entry.description_factual, 8.8);
 
     if (index < entries.length - 1) addRule();
   });
