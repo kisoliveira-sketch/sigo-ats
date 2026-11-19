@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getFriendlyErrorMessage } from "@/lib/friendly-errors";
 import { supabase } from "@/lib/supabase";
 import {
@@ -95,6 +96,16 @@ const DEFAULT_MEMBERS: ShiftMember[] = [
 ];
 
 export default function OpenShiftPage() {
+  const router = useRouter();
+  const submitInFlight = useRef(false);
+  const [returnToDashboard, setReturnToDashboard] = useState(false);
+
+  useEffect(() => {
+    if (!returnToDashboard) return;
+
+    const timer = window.setTimeout(() => router.replace("/"), 2000);
+    return () => window.clearTimeout(timer);
+  }, [returnToDashboard, router]);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [atsUnit, setAtsUnit] = useState<AtsUnit | null>(null);
   const [unitUsers, setUnitUsers] = useState<UnitUser[]>([]);
@@ -291,9 +302,7 @@ export default function OpenShiftPage() {
     setMembers((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
+  const persistShift = async () => {
     if (existingOpenShift) {
       setMessage(
         `Já existe um turno aberto (${existingOpenShift.shift_code}). Feche o turno atual antes de abrir outro.`,
@@ -475,7 +484,7 @@ export default function OpenShiftPage() {
       return;
     }
 
-    setMessage("Turno iniciado com sucesso.");
+    setMessage("Turno iniciado com sucesso. A voltar ao painel principal…");
     setMessageType("success");
     setExistingOpenShift({
       id: shiftId,
@@ -485,6 +494,29 @@ export default function OpenShiftPage() {
     setOpeningNotes("");
     setMembers(DEFAULT_MEMBERS);
     setLoading(false);
+    return true;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (submitInFlight.current) return;
+
+    submitInFlight.current = true;
+    let completed = false;
+    try {
+      completed = (await persistShift()) === true;
+      if (completed) setReturnToDashboard(true);
+    } catch (error) {
+      setMessage(getFriendlyErrorMessage(
+        "Não foi possível concluir a abertura do turno",
+        error && typeof error === "object" && "message" in error
+          ? String(error.message) : undefined,
+      ));
+      setMessageType("error");
+      setLoading(false);
+    } finally {
+      if (!completed) submitInFlight.current = false;
+    }
   };
 
   const inputClass = appFieldClass();
@@ -519,6 +551,7 @@ export default function OpenShiftPage() {
 
       {message && (
         <div
+          role={messageType === "error" ? "alert" : "status"}
           className={`mb-6 rounded-[0.9rem] border px-4 py-4 text-sm ${
             messageType === "success"
               ? "border-emerald-200 bg-emerald-50 text-emerald-700"
@@ -767,10 +800,10 @@ export default function OpenShiftPage() {
 
           <button
             type="submit"
-            disabled={loading || !!existingOpenShift || !profile?.ats_unit_id}
+            disabled={loading || returnToDashboard || !!existingOpenShift || !profile?.ats_unit_id}
             className={appButtonClass("primary", "xs")}
           >
-            {loading ? "A iniciar..." : "Iniciar turno"}
+            {returnToDashboard ? "A voltar ao painel…" : loading ? "A iniciar..." : "Iniciar turno"}
           </button>
         </div>
       </form>
