@@ -127,7 +127,7 @@ export default function HelpPage() {
             <HelpItem
               step="1"
               title="Registar entrada"
-              text="Com o turno aberto, o supervisor indicado regista entradas e saídas. Nas torres de São Vicente, da Boa Vista e do Sal, se não houver supervisor indicado, regista-as quem abriu o turno. A nota pode identificar a posição ou setor."
+              text="Com turno aberto, o supervisor regista a entrada do CTA na posição operacional. A nota pode identificar a posição ou setor."
             />
             <HelpItem
               step="2"

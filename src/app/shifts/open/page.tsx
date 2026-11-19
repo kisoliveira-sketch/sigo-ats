@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { getFriendlyErrorMessage } from "@/lib/friendly-errors";
 import { supabase } from "@/lib/supabase";
-import { isUnitWithoutSupervision } from "@/lib/position-log-authority";
 import {
   AlertIcon,
   appButtonClass,
@@ -90,12 +89,10 @@ const TWR_BVC_SHIFT_OPTIONS: ShiftOption[] = [
   { label: "09:00 - 19:00", suffix: "0900/1900", start: "09:00" },
 ];
 
-function getDefaultMembers(unitCode?: string | null): ShiftMember[] {
-  const cta = { user_id: "", role_in_shift: "CTA Operacional" };
-  return isUnitWithoutSupervision(unitCode)
-    ? [cta]
-    : [{ user_id: "", role_in_shift: "Supervisor" }, cta];
-}
+const DEFAULT_MEMBERS: ShiftMember[] = [
+  { user_id: "", role_in_shift: "Supervisor" },
+  { user_id: "", role_in_shift: "CTA Operacional" },
+];
 
 export default function OpenShiftPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -113,7 +110,7 @@ export default function OpenShiftPage() {
     new Date().toISOString().slice(0, 10),
   );
   const [openingNotes, setOpeningNotes] = useState("");
-  const [members, setMembers] = useState<ShiftMember[]>(() => getDefaultMembers());
+  const [members, setMembers] = useState<ShiftMember[]>(DEFAULT_MEMBERS);
 
   const availableShiftOptions = useMemo(
     () =>
@@ -217,7 +214,6 @@ export default function OpenShiftPage() {
       }
 
       setAtsUnit(unitData || null);
-      setMembers(getDefaultMembers(unitData?.code));
 
       const { data: unitUsersData, error: unitUsersError } = await supabase
         .from("profiles")
@@ -487,12 +483,11 @@ export default function OpenShiftPage() {
       operational_date: operationalDate,
     });
     setOpeningNotes("");
-    setMembers(getDefaultMembers(atsUnit?.code));
+    setMembers(DEFAULT_MEMBERS);
     setLoading(false);
   };
 
   const inputClass = appFieldClass();
-  const unitWithoutSupervision = isUnitWithoutSupervision(atsUnit?.code);
 
   return (
     <PageShell
@@ -669,11 +664,7 @@ export default function OpenShiftPage() {
               </SoftIcon>
             }
             title="Composição do turno"
-            subtitle={
-              unitWithoutSupervision
-                ? "Esta lista é definida por quem abre o turno e fica associada ao turno."
-                : "Esta lista é definida pelo supervisor e fica associada ao turno."
-            }
+            subtitle="Esta lista é definida pelo supervisor e fica associada ao turno."
           >
             <div className="mb-4 flex justify-end">
               <button
@@ -770,9 +761,8 @@ export default function OpenShiftPage() {
 
         <div className={appStickyBarClass()}>
           <div className="text-sm leading-6 text-slate-500">
-            {unitWithoutSupervision
-              ? "Quem abre o turno indica a equipa e gere os logs de posição quando não há supervisor indicado."
-              : "O supervisor inicia o turno, fixa a composição da equipa e gere os logs da posição operacional antes do registo de entradas."}
+            O supervisor inicia o turno, fixa a composição da equipa e gere os
+            logs da posição operacional antes do registo de entradas.
           </div>
 
           <button

@@ -7,10 +7,6 @@ import { useRouter } from "next/navigation";
 import { getFriendlyErrorMessage } from "@/lib/friendly-errors";
 import { supabase } from "@/lib/supabase";
 import {
-  canManagePositionLogs as canManageLogs,
-  getPositionLogAuthority,
-} from "@/lib/position-log-authority";
-import {
   AppFooter,
   FileIcon,
   GridIcon,
@@ -140,6 +136,16 @@ function extractCompositionLines(openingNotes?: string | null) {
     .split("|")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function extractSupervisorName(openingNotes?: string | null) {
+  const supervisorLine = extractCompositionLines(openingNotes).find((line) =>
+    line.toLowerCase().startsWith("supervisor:"),
+  );
+
+  return supervisorLine
+    ? supervisorLine.split(":").slice(1).join(":").trim() || null
+    : null;
 }
 
 function extractUserShiftRole(
@@ -969,25 +975,33 @@ export default function Home() {
   ].join(" · ");
 
   const quickAccessTurnActionLabel = hasOpenShift ? "Encerrar turno" : "Abrir turno";
-  const quickAccessTurnActionDescription = hasOpenShift
-    ? "Só quem abriu o turno o pode encerrar."
-    : "Iniciar novo turno";
+  const quickAccessNeedsOccurrenceValidation =
+    requiresValidationForClose && !isOpenShiftValidated;
+  const quickAccessTurnActionDescription = !hasOpenShift
+    ? "Iniciar novo turno"
+    : quickAccessNeedsOccurrenceValidation
+      ? canCloseCurrentShift
+        ? "Antes de fechar o turno, é preciso validar as ocorrências."
+        : "Antes de fechar o turno, é preciso validar as ocorrências. Só quem abriu o turno o pode encerrar."
+      : canCloseCurrentShift
+        ? "Consultar condições de fecho."
+        : "Só quem abriu o turno o pode encerrar.";
   const shiftComposition = useMemo(
     () => extractCompositionLines(openShift?.opening_notes),
     [openShift?.opening_notes],
   );
-  const positionLogAuthority = getPositionLogAuthority(openShift, atsUnit?.code);
-  const positionLogResponsible =
-    positionLogAuthority.kind === "supervisor"
-      ? positionLogAuthority.label
-      : positionLogAuthority.kind === "opener"
-        ? openShiftOpenedByName
-        : "—";
+  const shiftSupervisorName =
+    extractSupervisorName(openShift?.opening_notes) || openShiftOpenedByName;
   const currentUserShiftRole = extractUserShiftRole(openShift?.opening_notes, profile);
   const profileCardLabel = hasOpenShift && currentUserShiftRole ? "Função no turno" : "Perfil";
   const profileCardValue = currentUserShiftRole || profile?.role || "—";
   const canAccessAdmin = (profile?.role ?? "") === "ADMIN";
-  const canManagePositionLogs = canManageLogs(positionLogAuthority, profile);
+  const canManagePositionLogs =
+    !!profile &&
+    !!openShift &&
+    !!shiftSupervisorName &&
+    ((profile.full_name?.trim().toLowerCase() || "") === shiftSupervisorName.toLowerCase() ||
+      (profile.email?.trim().toLowerCase() || "") === shiftSupervisorName.toLowerCase());
   const hasAnyPositionLogs = positionLogsCount > 0;
   const hasActivePositionLogs = activePositionLogs.length > 0;
   const activePositionStatus = !hasOpenShift
@@ -1039,11 +1053,7 @@ export default function Home() {
     : !hasAnyPositionLogs
     ? canManagePositionLogs
       ? "Registe a primeira entrada na posição operacional antes do restante fluxo do turno."
-      : positionLogAuthority.kind === "opener"
-        ? "Aguardar que quem abriu o turno registe a primeira entrada na posição operacional."
-        : positionLogAuthority.kind === "supervisor"
-          ? "Aguardar o supervisor para registar a entrada inicial na posição operacional."
-          : "Não existe responsável identificado para registar a entrada na posição operacional."
+      : "Aguardar o supervisor para registar a entrada inicial na posição operacional."
     : hasActivePositionLogs
     ? canCreateOccurrence
       ? "Com a posição operacional ativa, já pode registar entradas de ocorrência no turno."
@@ -1399,12 +1409,10 @@ export default function Home() {
                     </DashboardIconBox>
                     <div className="min-w-0">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                        {positionLogAuthority.kind === "opener"
-                          ? "Responsável pelos logs"
-                          : "Supervisor do turno"}
+                        Supervisor do turno
                       </p>
                       <p className="mt-1 truncate text-[15px] font-semibold text-slate-900">
-                        {hasOpenShift ? positionLogResponsible : "—"}
+                        {hasOpenShift ? shiftSupervisorName : "—"}
                       </p>
                     </div>
                   </div>
@@ -1468,8 +1476,7 @@ export default function Home() {
 
                 <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                   {hasOpenShift &&
-                  (!canCloseCurrentShift ||
-                    (requiresValidationForClose && !isOpenShiftValidated)) ? (
+                  (!canCloseCurrentShift || quickAccessNeedsOccurrenceValidation) ? (
                     <QuickAccessCard
                       title={quickAccessTurnActionLabel}
                       description={quickAccessTurnActionDescription}
