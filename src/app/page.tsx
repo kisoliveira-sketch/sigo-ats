@@ -7,6 +7,10 @@ import { useRouter } from "next/navigation";
 import { getFriendlyErrorMessage } from "@/lib/friendly-errors";
 import { supabase } from "@/lib/supabase";
 import {
+  canManagePositionLogs as canManageLogs,
+  getPositionLogAuthority,
+} from "@/lib/position-log-authority";
+import {
   AppFooter,
   FileIcon,
   GridIcon,
@@ -136,16 +140,6 @@ function extractCompositionLines(openingNotes?: string | null) {
     .split("|")
     .map((item) => item.trim())
     .filter(Boolean);
-}
-
-function extractSupervisorName(openingNotes?: string | null) {
-  const supervisorLine = extractCompositionLines(openingNotes).find((line) =>
-    line.toLowerCase().startsWith("supervisor:"),
-  );
-
-  return supervisorLine
-    ? supervisorLine.split(":").slice(1).join(":").trim() || null
-    : null;
 }
 
 function extractUserShiftRole(
@@ -990,18 +984,18 @@ export default function Home() {
     () => extractCompositionLines(openShift?.opening_notes),
     [openShift?.opening_notes],
   );
-  const shiftSupervisorName =
-    extractSupervisorName(openShift?.opening_notes) || openShiftOpenedByName;
+  const positionLogAuthority = getPositionLogAuthority(openShift, atsUnit?.code);
+  const positionLogResponsible =
+    positionLogAuthority.kind === "supervisor"
+      ? positionLogAuthority.label
+      : positionLogAuthority.kind === "opener"
+        ? openShiftOpenedByName
+        : "—";
   const currentUserShiftRole = extractUserShiftRole(openShift?.opening_notes, profile);
   const profileCardLabel = hasOpenShift && currentUserShiftRole ? "Função no turno" : "Perfil";
   const profileCardValue = currentUserShiftRole || profile?.role || "—";
   const canAccessAdmin = (profile?.role ?? "") === "ADMIN";
-  const canManagePositionLogs =
-    !!profile &&
-    !!openShift &&
-    !!shiftSupervisorName &&
-    ((profile.full_name?.trim().toLowerCase() || "") === shiftSupervisorName.toLowerCase() ||
-      (profile.email?.trim().toLowerCase() || "") === shiftSupervisorName.toLowerCase());
+  const canManagePositionLogs = canManageLogs(positionLogAuthority, profile);
   const hasAnyPositionLogs = positionLogsCount > 0;
   const hasActivePositionLogs = activePositionLogs.length > 0;
   const activePositionStatus = !hasOpenShift
@@ -1053,7 +1047,11 @@ export default function Home() {
     : !hasAnyPositionLogs
     ? canManagePositionLogs
       ? "Registe a primeira entrada na posição operacional antes do restante fluxo do turno."
-      : "Aguardar o supervisor para registar a entrada inicial na posição operacional."
+      : positionLogAuthority.kind === "opener"
+        ? "Aguardar que quem abriu o turno registe a primeira entrada na posição operacional."
+        : positionLogAuthority.kind === "supervisor"
+          ? "Aguardar o supervisor para registar a entrada inicial na posição operacional."
+          : "Não existe responsável identificado para registar a entrada na posição operacional."
     : hasActivePositionLogs
     ? canCreateOccurrence
       ? "Com a posição operacional ativa, já pode registar entradas de ocorrência no turno."
@@ -1409,10 +1407,12 @@ export default function Home() {
                     </DashboardIconBox>
                     <div className="min-w-0">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                        Supervisor do turno
+                        {positionLogAuthority.kind === "opener"
+                          ? "Responsável pelos logs"
+                          : "Supervisor do turno"}
                       </p>
                       <p className="mt-1 truncate text-[15px] font-semibold text-slate-900">
-                        {hasOpenShift ? shiftSupervisorName : "—"}
+                        {hasOpenShift ? positionLogResponsible : "—"}
                       </p>
                     </div>
                   </div>

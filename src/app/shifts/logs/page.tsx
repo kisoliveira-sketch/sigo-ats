@@ -1,9 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getFriendlyErrorMessage } from "@/lib/friendly-errors";
 import { supabase } from "@/lib/supabase";
+import {
+  canManagePositionLogs as canManageLogs,
+  getPositionLogAuthority,
+  isUnitWithoutSupervision,
+} from "@/lib/position-log-authority";
 import {
   AlertIcon,
   appButtonClass,
@@ -88,31 +93,14 @@ function extractCompositionLabels(openingNotes: string | null) {
     .filter(Boolean);
 }
 
-function extractSupervisorLabel(openingNotes: string | null) {
-  if (!openingNotes) return null;
-
-  const marker = "Composição do turno:";
-  const idx = openingNotes.indexOf(marker);
-
-  if (idx === -1) return null;
-
-  const supervisorLine = openingNotes
-    .slice(idx + marker.length)
-    .trim()
-    .split("|")
-    .map((item) => item.trim())
-    .find((item) => item.toLowerCase().startsWith("supervisor:"));
-
-  return supervisorLine
-    ? supervisorLine.split(":").slice(1).join(":").trim() || null
-    : null;
-}
-
 export default function ShiftLogsPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [unitCode, setUnitCode] = useState<string | null>(null);
   const [openShift, setOpenShift] = useState<OpenShift | null>(null);
   const [unitUsers, setUnitUsers] = useState<UnitUser[]>([]);
   const [logs, setLogs] = useState<PositionLog[]>([]);
+  const [logsLoaded, setLogsLoaded] = useState(false);
+  const positionWriteInFlight = useRef(false);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState<"success" | "error" | "">("");
   const [loading, setLoading] = useState(true);
@@ -167,22 +155,30 @@ export default function ShiftLogsPage() {
         return;
       }
 
-      const [{ data: openShiftData, error: openShiftError }, { data: unitUsersData, error: unitUsersError }] =
-        await Promise.all([
-          supabase
-            .from("shifts")
-            .select("id, shift_code, operational_date, status, opening_notes, opened_by")
-            .eq("ats_unit_id", profileData.ats_unit_id)
-            .eq("status", "OPEN")
-            .order("id", { ascending: false })
-            .limit(1)
-            .maybeSingle(),
-          supabase
-            .from("profiles")
-            .select("id, full_name, email")
-            .eq("ats_unit_id", profileData.ats_unit_id)
-            .order("full_name", { ascending: true }),
-        ]);
+      const [
+        { data: openShiftData, error: openShiftError },
+        { data: unitUsersData, error: unitUsersError },
+        { data: unitData },
+      ] = await Promise.all([
+        supabase
+          .from("shifts")
+          .select("id, shift_code, operational_date, status, opening_notes, opened_by")
+          .eq("ats_unit_id", profileData.ats_unit_id)
+          .eq("status", "OPEN")
+          .order("id", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from("profiles")
+          .select("id, full_name, email")
+          .eq("ats_unit_id", profileData.ats_unit_id)
+          .order("full_name", { ascending: true }),
+        supabase
+          .from("ats_units")
+          .select("code")
+          .eq("id", profileData.ats_unit_id)
+          .maybeSingle(),
+      ]);
 
       if (!active) return;
 
@@ -210,6 +206,7 @@ export default function ShiftLogsPage() {
         return;
       }
 
+      setUnitCode(unitData?.code ?? null);
       setOpenShift((openShiftData as OpenShift | null) ?? null);
       const users = (unitUsersData as UnitUser[]) ?? [];
       setUnitUsers(users);
@@ -244,6 +241,7 @@ export default function ShiftLogsPage() {
       }
 
       setLogs((logsData as PositionLog[]) ?? []);
+      setLogsLoaded(true);
       setLoading(false);
     };
 
@@ -279,29 +277,47 @@ export default function ShiftLogsPage() {
     });
   }, [openShift?.opening_notes, unitUsers]);
 
-  const effectiveSelectedUserId =
-    eligibleUsers.some((item) => item.id === selectedUserId)
-      ? selectedUserId
-      : eligibleUsers[0]?.id || "";
-  const supervisorLabel = extractSupervisorLabel(openShift?.opening_notes ?? null);
-  const canManagePositionLogs =
-    !!profile &&
-    !!openShift &&
-    !!supervisorLabel &&
-    ((profile.full_name?.trim().toLowerCase() || "") === supervisorLabel.toLowerCase() ||
-      (profile.email?.trim().toLowerCase() || "") === supervisorLabel.toLowerCase());
+  const positionLogAuthority = getPositionLogAuthority(openShift, unitCode);
+  const canManagePositionLogs = canManageLogs(positionLogAuthority, profile);
+  const positionLogPermissionMessage =
+    positionLogAuthority.kind === "opener"
+      ? "Só quem abriu o turno pode registar entradas e saídas da posição nesta unidade."
+      : positionLogAuthority.kind === "none" && isUnitWithoutSupervision(unitCode)
+        ? "Não foi possível identificar quem abriu o turno para gerir os logs."
+        : "Só o supervisor identificado no turno pode registar entradas e saídas da posição.";
 
   const activeLogs = useMemo(
     () => logs.filter((item) => !item.left_at_utc),
     [logs],
   );
 
+  const activeUserIds = useMemo(
+    () => new Set(activeLogs.map((log) => log.user_id)),
+    [activeLogs],
+  );
+  const availableEntryUsers = eligibleUsers.filter((item) => !activeUserIds.has(item.id));
+  const effectiveSelectedUserId =
+    availableEntryUsers.some((item) => item.id === selectedUserId) ? selectedUserId : "";
+
   const selectedExitLog = useMemo(
     () => activeLogs.find((item) => String(item.id) === selectedExitLogId) ?? activeLogs[0] ?? null,
     [activeLogs, selectedExitLogId],
   );
 
+  const refreshPositionLogs = async (shiftId: number) => {
+    const { data, error } = await supabase
+      .from("shift_position_logs")
+      .select("id, user_id, entered_at_utc, left_at_utc, notes")
+      .eq("shift_id", shiftId)
+      .order("entered_at_utc", { ascending: true });
+    if (!error) {
+      setLogs((data as PositionLog[]) ?? []);
+      setLogsLoaded(true);
+    }
+  };
+
   const handleRegisterEntry = async () => {
+    if (positionWriteInFlight.current) return;
     if (!profile?.ats_unit_id || !openShift) {
       setMessage("Não existe turno aberto para registar entrada na posição.");
       setMessageType("error");
@@ -309,7 +325,13 @@ export default function ShiftLogsPage() {
     }
 
     if (!canManagePositionLogs) {
-      setMessage("Só o supervisor do turno pode registar entradas e saídas da posição.");
+      setMessage(positionLogPermissionMessage);
+      setMessageType("error");
+      return;
+    }
+
+    if (!logsLoaded) {
+      setMessage("Não foi possível confirmar as posições ativas. Atualiza a página antes de registar.");
       setMessageType("error");
       return;
     }
@@ -320,88 +342,126 @@ export default function ShiftLogsPage() {
       return;
     }
 
+    positionWriteInFlight.current = true;
     setSavingEntry(true);
     setMessage("");
     setMessageType("");
 
-    const enteredAtIso = getOperationalUtcIso();
+    try {
+      const { data: existing, error: activeReadError } = await supabase
+        .from("shift_position_logs")
+        .select("id")
+        .eq("shift_id", openShift.id)
+        .eq("user_id", effectiveSelectedUserId)
+        .is("left_at_utc", null)
+        .limit(1)
+        .maybeSingle();
 
-    const { data, error } = await supabase
-      .from("shift_position_logs")
-      .insert({
-        shift_id: openShift.id,
-        ats_unit_id: profile.ats_unit_id,
-        user_id: effectiveSelectedUserId,
-        recorded_by: profile.id,
-        entered_at_utc: enteredAtIso,
-        notes: notes.trim() || null,
-      })
-      .select("id, user_id, entered_at_utc, left_at_utc, notes")
-      .single();
+      if (activeReadError) throw activeReadError;
+      if (existing) {
+        setSelectedUserId("");
+        setMessage("Este CTA já se encontra em posição neste turno.");
+        setMessageType("error");
+        await refreshPositionLogs(openShift.id);
+        return;
+      }
 
-    if (error || !data) {
-      setMessage(
-        getFriendlyErrorMessage(
-          "Não foi possível registar a entrada na posição",
-          error?.message,
-        ),
-      );
+      const { data, error } = await supabase
+        .from("shift_position_logs")
+        .insert({
+          shift_id: openShift.id,
+          ats_unit_id: profile.ats_unit_id,
+          user_id: effectiveSelectedUserId,
+          recorded_by: profile.id,
+          entered_at_utc: getOperationalUtcIso(),
+          notes: notes.trim() || null,
+        })
+        .select("id, user_id, entered_at_utc, left_at_utc, notes")
+        .single();
+
+      if (
+        error?.code === "23505" &&
+        error.message.includes("shift_position_logs_one_active_per_shift_cta")
+      ) {
+        setSelectedUserId("");
+        setMessage("Este CTA já se encontra em posição neste turno.");
+        setMessageType("error");
+        await refreshPositionLogs(openShift.id);
+        return;
+      }
+      if (error || !data) throw error ?? new Error("Registo não devolvido.");
+
+      setLogs((current) => [...current, data as PositionLog]);
+      setSelectedUserId("");
+      setNotes("");
+      setMessage("Entrada na posição operacional registada com sucesso.");
+      setMessageType("success");
+    } catch (error) {
+      setMessage(getFriendlyErrorMessage(
+        "Não foi possível registar a entrada na posição",
+        error && typeof error === "object" && "message" in error
+          ? String(error.message) : undefined,
+      ));
       setMessageType("error");
+    } finally {
+      positionWriteInFlight.current = false;
       setSavingEntry(false);
-      return;
     }
-
-    setLogs((current) => [...current, data as PositionLog]);
-    setNotes("");
-    setMessage("Entrada na posição operacional registada com sucesso.");
-    setMessageType("success");
-    setSavingEntry(false);
   };
 
   const handleRegisterExit = async () => {
-    if (!selectedExitLog) {
+    if (positionWriteInFlight.current) return;
+    if (!selectedExitLog || !openShift || !logsLoaded) {
       setMessage("Não existe CTA ativo na posição para registar saída.");
       setMessageType("error");
       return;
     }
 
     if (!canManagePositionLogs) {
-      setMessage("Só o supervisor do turno pode registar entradas e saídas da posição.");
+      setMessage(positionLogPermissionMessage);
       setMessageType("error");
       return;
     }
 
+    positionWriteInFlight.current = true;
     setSavingExit(true);
     setMessage("");
     setMessageType("");
 
-    const exitIso = getSafeExitIso(selectedExitLog.entered_at_utc);
+    try {
+      const exitIso = getSafeExitIso(selectedExitLog.entered_at_utc);
+      const { data, error } = await supabase
+        .from("shift_position_logs")
+        .update({ left_at_utc: exitIso })
+        .eq("shift_id", openShift.id)
+        .eq("id", selectedExitLog.id)
+        .is("left_at_utc", null)
+        .select("id")
+        .maybeSingle();
 
-    const { error } = await supabase
-      .from("shift_position_logs")
-      .update({ left_at_utc: exitIso })
-      .eq("id", selectedExitLog.id);
-
-    if (error) {
-      setMessage(
-        getFriendlyErrorMessage(
-          "Não foi possível registar a saída da posição",
-          error.message,
-        ),
-      );
-      setMessageType("error");
-      setSavingExit(false);
-      return;
-    }
-
-    setLogs((current) =>
-      current.map((item) =>
+      if (error) throw error;
+      if (!data) {
+        setMessage("Este registo já não está ativo. Confirma os registos atualizados.");
+        setMessageType("error");
+        await refreshPositionLogs(openShift.id);
+        return;
+      }
+      setLogs((current) => current.map((item) =>
         item.id === selectedExitLog.id ? { ...item, left_at_utc: exitIso } : item,
-      ),
-    );
-    setMessage("Saída da posição operacional registada com sucesso.");
-    setMessageType("success");
-    setSavingExit(false);
+      ));
+      setMessage("Saída da posição operacional registada com sucesso.");
+      setMessageType("success");
+    } catch (error) {
+      setMessage(getFriendlyErrorMessage(
+        "Não foi possível registar a saída da posição",
+        error && typeof error === "object" && "message" in error
+          ? String(error.message) : undefined,
+      ));
+      setMessageType("error");
+    } finally {
+      positionWriteInFlight.current = false;
+      setSavingExit(false);
+    }
   };
 
   return (
@@ -465,7 +525,7 @@ export default function ShiftLogsPage() {
         <div className="space-y-6">
           {!canManagePositionLogs && (
             <div className="rounded-[0.9rem] border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
-              Só o supervisor que abriu o turno pode registar entradas e saídas da posição. Os restantes utilizadores podem apenas consultar os logs.
+              {positionLogPermissionMessage} Os restantes utilizadores podem apenas consultar os logs.
             </div>
           )}
 
@@ -556,14 +616,14 @@ export default function ShiftLogsPage() {
                       <SelectField
                         value={effectiveSelectedUserId}
                         onChange={(e) => setSelectedUserId(e.target.value)}
-                        disabled={!canManagePositionLogs}
+                        disabled={!canManagePositionLogs || !logsLoaded || savingEntry || savingExit}
                       >
                         <option value="">
-                          {eligibleUsers.length > 0
+                          {availableEntryUsers.length > 0
                             ? "Selecionar CTA"
-                            : "Sem CTA na composição do turno"}
+                            : "Sem CTA disponível para nova entrada"}
                         </option>
-                        {eligibleUsers.map((item) => (
+                        {availableEntryUsers.map((item) => (
                           <option key={item.id} value={item.id}>
                             {item.full_name || item.email}
                           </option>
@@ -588,7 +648,7 @@ export default function ShiftLogsPage() {
                     <button
                       type="button"
                       onClick={handleRegisterEntry}
-                      disabled={savingEntry || !canManagePositionLogs}
+                      disabled={savingEntry || savingExit || !canManagePositionLogs || !logsLoaded || !effectiveSelectedUserId}
                       className={appButtonClass("primary")}
                     >
                       {savingEntry ? "A registar entrada..." : "Registar entrada na posição"}
@@ -640,7 +700,7 @@ export default function ShiftLogsPage() {
                     <button
                       type="button"
                       onClick={handleRegisterExit}
-                      disabled={savingExit || activeLogs.length === 0 || !canManagePositionLogs}
+                      disabled={savingEntry || savingExit || activeLogs.length === 0 || !canManagePositionLogs || !logsLoaded}
                       className={appButtonClass("primary")}
                     >
                       {savingExit ? "A registar saída..." : "Registar saída da posição"}
