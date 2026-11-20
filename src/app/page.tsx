@@ -6,6 +6,7 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getFriendlyErrorMessage } from "@/lib/friendly-errors";
 import { supabase } from "@/lib/supabase";
+import { getDashboardPrimaryActionKind, getDashboardTurnAction, readDashboardSnapshot, startDashboardRefresh, type DashboardSnapshot } from "@/lib/dashboard-refresh";
 import { useShiftAuthority } from "@/lib/shift-authority";
 import {
   AppFooter,
@@ -33,27 +34,6 @@ type AtsUnit = {
   code: string;
 };
 
-type Shift = {
-  id: number;
-  shift_code: string;
-  status: string;
-  operational_date?: string;
-  opened_by?: string | null;
-  start_time_utc?: string | null;
-  end_time_utc?: string | null;
-  validated_at_utc?: string | null;
-  opening_notes?: string | null;
-};
-
-type ActivePositionLog = {
-  id: number;
-  user_id: string;
-  entered_at_utc: string;
-  left_at_utc: string | null;
-  notes: string | null;
-  user_name: string;
-};
-
 type ThemeDisplayMode = "light" | "dark" | "system";
 type TimeDisplayMode = "utc" | "local";
 const THEME_DISPLAY_STORAGE_KEY = "sigo-theme-display";
@@ -78,13 +58,14 @@ function formatTimeByPreference(value: string | null, timeDisplayMode: TimeDispl
 function getEventSummaryParts(
   value: string | null,
   timeDisplayMode: TimeDisplayMode,
+  observedAt?: number,
 ) {
   if (!value) {
     return { top: "—", bottom: "" };
   }
 
   const date = new Date(value);
-  const now = new Date();
+  const now = new Date(observedAt ?? Date.now());
   const sameDay =
     timeDisplayMode === "local"
       ? date.getFullYear() === now.getFullYear() &&
@@ -430,22 +411,13 @@ export default function Home() {
   const [noticeTone, setNoticeTone] = useState<"success" | "info">("info");
   const [profile, setProfile] = useState<Profile | null>(null);
   const [atsUnit, setAtsUnit] = useState<AtsUnit | null>(null);
-  const [openShift, setOpenShift] = useState<Shift | null>(null);
-  const [openShiftOpenedByName, setOpenShiftOpenedByName] = useState("—");
-  const [lastOperationalEventAt, setLastOperationalEventAt] = useState<string | null>(null);
-  const [activeOccurrencesCount, setActiveOccurrencesCount] = useState(0);
-  const [closeOccurrenceCheck, setCloseOccurrenceCheck] = useState<{
-    shiftId: number;
-    failed: boolean;
+  const [dashboardRead, setDashboardRead] = useState<{
+    scope: string;
+    snapshot: DashboardSnapshot | null;
+    unavailable: boolean;
+    observedAt: number;
   } | null>(null);
-  const [closePositionCheck, setClosePositionCheck] = useState<{
-    shiftId: number;
-    failed: boolean;
-    activeCount: number;
-  } | null>(null);
-  const [activePendingCount, setActivePendingCount] = useState(0);
-  const [activePositionLogs, setActivePositionLogs] = useState<ActivePositionLog[]>([]);
-  const [positionLogsCount, setPositionLogsCount] = useState(0);
+  const refreshDashboardRef = useRef<(() => void) | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false);
   const [recoveryLoading, setRecoveryLoading] = useState(false);
@@ -464,11 +436,6 @@ export default function Home() {
         ? "dark"
         : "light"
       : themeDisplayMode;
-
-  const lastEventSummary = useMemo(
-    () => getEventSummaryParts(lastOperationalEventAt, timeDisplayMode),
-    [lastOperationalEventAt, timeDisplayMode],
-  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -514,9 +481,9 @@ export default function Home() {
     window.localStorage.setItem(TIME_DISPLAY_STORAGE_KEY, timeDisplayMode);
   }, [preferencesReady, timeDisplayMode]);
 
-  const loadProfileAndShift = async (
+  const loadProfile = async (
     userId?: string,
-    mounted: boolean = true,
+    isMounted = () => true,
   ) => {
     if (isLoggingOutRef.current) return;
     try {
@@ -528,7 +495,7 @@ export default function Home() {
           error: sessionError,
         } = await supabase.auth.getSession();
 
-        if (!mounted || isLoggingOutRef.current) return;
+        if (!isMounted() || isLoggingOutRef.current) return;
 
         if (sessionError) {
           setMessage(
@@ -539,24 +506,12 @@ export default function Home() {
           );
           setProfile(null);
           setAtsUnit(null);
-          setOpenShift(null);
-          setOpenShiftOpenedByName("—");
-          setActiveOccurrencesCount(0);
-          setActivePendingCount(0);
-          setActivePositionLogs([]);
-          setPositionLogsCount(0);
           return;
         }
 
         if (!session?.user) {
           setProfile(null);
           setAtsUnit(null);
-          setOpenShift(null);
-          setOpenShiftOpenedByName("—");
-          setActiveOccurrencesCount(0);
-          setActivePendingCount(0);
-          setActivePositionLogs([]);
-          setPositionLogsCount(0);
           return;
         }
 
@@ -569,7 +524,7 @@ export default function Home() {
         .eq("id", resolvedUserId)
         .maybeSingle();
 
-      if (!mounted || isLoggingOutRef.current) return;
+      if (!isMounted() || isLoggingOutRef.current) return;
 
       if (error) {
         setMessage(
@@ -580,13 +535,6 @@ export default function Home() {
         );
         setProfile(null);
         setAtsUnit(null);
-        setOpenShift(null);
-        setOpenShiftOpenedByName("—");
-        setLastOperationalEventAt(null);
-        setActiveOccurrencesCount(0);
-        setActivePendingCount(0);
-        setActivePositionLogs([]);
-        setPositionLogsCount(0);
         return;
       }
 
@@ -594,13 +542,6 @@ export default function Home() {
         setMessage("Perfil não encontrado.");
         setProfile(null);
         setAtsUnit(null);
-        setOpenShift(null);
-        setOpenShiftOpenedByName("—");
-        setLastOperationalEventAt(null);
-        setActiveOccurrencesCount(0);
-        setActivePendingCount(0);
-        setActivePositionLogs([]);
-        setPositionLogsCount(0);
         return;
       }
 
@@ -609,10 +550,6 @@ export default function Home() {
 
       if (!data.ats_unit_id) {
         setAtsUnit(null);
-        setOpenShift(null);
-        setOpenShiftOpenedByName("—");
-        setActiveOccurrencesCount(0);
-        setActivePendingCount(0);
         return;
       }
 
@@ -622,7 +559,7 @@ export default function Home() {
         .eq("id", data.ats_unit_id)
         .maybeSingle();
 
-      if (!mounted || isLoggingOutRef.current) return;
+      if (!isMounted() || isLoggingOutRef.current) return;
 
       if (unitError) {
         setAtsUnit(null);
@@ -636,105 +573,8 @@ export default function Home() {
         setAtsUnit(unitData || null);
       }
 
-      const { data: shiftData, error: shiftError } = await supabase
-        .from("shifts")
-        .select("id, shift_code, status, operational_date, opened_by, start_time_utc, validated_at_utc, opening_notes")
-        .eq("ats_unit_id", data.ats_unit_id)
-        .eq("status", "OPEN")
-        .order("id", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (!mounted || isLoggingOutRef.current) return;
-
-      if (shiftError) {
-        setMessage(
-          getFriendlyErrorMessage(
-            "Não foi possível verificar se existe um turno aberto",
-            shiftError.message,
-          ),
-        );
-        setOpenShift(null);
-        setOpenShiftOpenedByName("—");
-        return;
-      }
-
-      setOpenShift(shiftData || null);
-
-      if (shiftData?.opened_by) {
-        const { data: openerProfile } = await supabase
-          .from("profiles")
-          .select("full_name")
-          .eq("id", shiftData.opened_by)
-          .maybeSingle();
-
-        if (!mounted || isLoggingOutRef.current) return;
-
-        setOpenShiftOpenedByName(openerProfile?.full_name || "—");
-      } else {
-        setOpenShiftOpenedByName("—");
-      }
-
-      const { data: closedShiftData } = await supabase
-        .from("shifts")
-        .select("id, shift_code, status, operational_date, end_time_utc")
-        .eq("ats_unit_id", data.ats_unit_id)
-        .eq("status", "CLOSED")
-        .order("id", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (!mounted || isLoggingOutRef.current) return;
-      const [
-        { data: latestOccurrenceData },
-        { data: latestLogEntryData },
-        { data: latestLogExitData },
-      ] = await Promise.all([
-        supabase
-          .from("occurrences")
-          .select("occurrence_at_utc")
-          .eq("ats_unit_id", data.ats_unit_id)
-          .order("occurrence_at_utc", { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-        supabase
-          .from("shift_position_logs")
-          .select("entered_at_utc")
-          .eq("ats_unit_id", data.ats_unit_id)
-          .order("entered_at_utc", { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-        supabase
-          .from("shift_position_logs")
-          .select("left_at_utc")
-          .eq("ats_unit_id", data.ats_unit_id)
-          .not("left_at_utc", "is", null)
-          .order("left_at_utc", { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-      ]);
-
-      if (!mounted || isLoggingOutRef.current) return;
-
-      const eventCandidates = [
-        shiftData?.validated_at_utc,
-        shiftData?.start_time_utc,
-        closedShiftData?.end_time_utc,
-        latestOccurrenceData?.occurrence_at_utc,
-        latestLogEntryData?.entered_at_utc,
-        latestLogExitData?.left_at_utc,
-      ].filter(Boolean) as string[];
-
-      const latestEvent =
-        eventCandidates.length > 0
-          ? eventCandidates.reduce((latest, current) =>
-              new Date(current).getTime() > new Date(latest).getTime() ? current : latest,
-            )
-          : null;
-
-      setLastOperationalEventAt(latestEvent);
     } catch (error) {
-      if (!mounted || isLoggingOutRef.current) return;
+      if (!isMounted() || isLoggingOutRef.current) return;
 
       const message =
         error instanceof Error ? error.message : "Erro inesperado ao carregar a aplicação";
@@ -742,13 +582,6 @@ export default function Home() {
       setMessage(getFriendlyErrorMessage("Não foi possível carregar a aplicação", message));
       setProfile(null);
       setAtsUnit(null);
-      setOpenShift(null);
-      setOpenShiftOpenedByName("—");
-      setLastOperationalEventAt(null);
-      setActiveOccurrencesCount(0);
-      setActivePendingCount(0);
-      setActivePositionLogs([]);
-      setPositionLogsCount(0);
     }
   };
 
@@ -764,7 +597,7 @@ export default function Home() {
         setNoticeTone("info");
         return;
       }
-      await loadProfileAndShift(undefined, mounted);
+      await loadProfile(undefined, () => mounted);
       if (mounted) setBooting(false);
     };
 
@@ -776,19 +609,14 @@ export default function Home() {
       if (!mounted) return;
       if (isLoggingOutRef.current) return;
       if (event === "INITIAL_SESSION") return;
+      if (event === "SIGNED_OUT") setDashboardRead(null);
 
       if (event === "PASSWORD_RECOVERY" || hasRecoveryParamsInUrl()) {
         setIsPasswordRecoveryMode(true);
         setBooting(false);
         setProfile(null);
         setAtsUnit(null);
-        setOpenShift(null);
-        setOpenShiftOpenedByName("—");
-        setLastOperationalEventAt(null);
-        setActiveOccurrencesCount(0);
-        setActivePendingCount(0);
-        setActivePositionLogs([]);
-        setPositionLogsCount(0);
+        setDashboardRead(null);
         setNotice("Defina a nova palavra-passe para concluir a recuperação da conta.");
         setNoticeTone("info");
         setMessage("");
@@ -796,7 +624,7 @@ export default function Home() {
       }
 
       void (async () => {
-        await loadProfileAndShift(session?.user?.id, mounted);
+        await loadProfile(session?.user?.id, () => mounted);
         if (mounted) setBooting(false);
       })();
     });
@@ -807,141 +635,77 @@ export default function Home() {
     };
   }, []);
 
-  useEffect(() => {
-    let active = true;
-    const currentShiftId = openShift?.id;
-
-    const loadShiftCounters = async () => {
-      if (!currentShiftId) {
-        if (!active) return;
-        setCloseOccurrenceCheck(null);
-        setActiveOccurrencesCount(0);
-        setActivePendingCount(0);
-        return;
-      }
-
-      const [{ count: totalCount, error: totalError }, { count: pendingCount }] = await Promise.all([
-        supabase
-          .from("occurrences")
-          .select("*", { count: "exact", head: true })
-          .eq("shift_id", currentShiftId),
-        supabase
-          .from("occurrences")
-          .select("*", { count: "exact", head: true })
-          .eq("shift_id", currentShiftId)
-          .eq("requires_followup", true),
-      ]);
-
-      if (!active) return;
-      setActiveOccurrencesCount(totalCount || 0);
-      setActivePendingCount(pendingCount || 0);
-      setCloseOccurrenceCheck({
-        shiftId: currentShiftId,
-        failed: !!totalError || totalCount === null,
-      });
-    };
-
-    void loadShiftCounters();
-
-    return () => {
-      active = false;
-    };
-  }, [openShift?.id]);
+  const dashboardUserId = profile?.id;
+  const dashboardUnitId = profile?.ats_unit_id;
+  const dashboardScope = dashboardUserId && dashboardUnitId ? dashboardUserId + ":" + dashboardUnitId : null;
 
   useEffect(() => {
-    let active = true;
-    const currentShiftId = openShift?.id;
-
-    const loadPositionLogsCount = async () => {
-      if (!currentShiftId) {
-        if (!active) return;
-        setPositionLogsCount(0);
-        return;
+    if (!dashboardScope || !dashboardUnitId || isPasswordRecoveryMode) return;
+    const refresh = startDashboardRefresh(async (visibilitySignal) => {
+      const controller = new AbortController();
+      const onVisibilityAbort = () => controller.abort();
+      visibilitySignal.addEventListener("abort", onVisibilityAbort, { once: true });
+      const timeout = window.setTimeout(() => controller.abort(), 10_000);
+      const { signal } = controller;
+      try {
+        const snapshot = await readDashboardSnapshot(supabase, dashboardUnitId, signal);
+        if (signal.aborted) throw new Error("Dashboard refresh timed out");
+        if (isLoggingOutRef.current) return;
+        setDashboardRead({ scope: dashboardScope, snapshot, unavailable: false, observedAt: Date.now() });
+      } catch {
+        if (visibilitySignal.aborted || isLoggingOutRef.current) return;
+        setDashboardRead((before) => ({
+          scope: dashboardScope,
+          snapshot: before?.scope === dashboardScope ? before.snapshot : null,
+          unavailable: true,
+          observedAt: Date.now(),
+        }));
+      } finally {
+        window.clearTimeout(timeout);
+        visibilitySignal.removeEventListener("abort", onVisibilityAbort);
       }
-
-      const { count } = await supabase
-        .from("shift_position_logs")
-        .select("*", { count: "exact", head: true })
-        .eq("shift_id", currentShiftId);
-
-      if (!active) return;
-      setPositionLogsCount(count || 0);
-    };
-
-    void loadPositionLogsCount();
-
+    }, {
+      visible: () => document.visibilityState === "visible",
+      subscribe: (callback) => {
+        document.addEventListener("visibilitychange", callback);
+        window.addEventListener("focus", callback);
+        window.addEventListener("online", callback);
+        return () => {
+          document.removeEventListener("visibilitychange", callback);
+          window.removeEventListener("focus", callback);
+          window.removeEventListener("online", callback);
+        };
+      },
+      setTimer: (callback, delay) => window.setTimeout(callback, delay),
+      clearTimer: (id) => window.clearTimeout(id),
+    });
+    refreshDashboardRef.current = refresh.refresh;
     return () => {
-      active = false;
+      refresh.stop();
+      refreshDashboardRef.current = null;
     };
-  }, [openShift?.id]);
+  }, [dashboardScope, dashboardUnitId, isPasswordRecoveryMode]);
 
-  useEffect(() => {
-    let active = true;
-    const currentShiftId = openShift?.id;
-
-    const loadActivePositionLogs = async () => {
-      if (!currentShiftId) {
-        if (!active) return;
-        setClosePositionCheck(null);
-        setActivePositionLogs([]);
-        return;
-      }
-
-      const { data: logsData, error: logsError } = await supabase
-        .from("shift_position_logs")
-        .select("id, user_id, entered_at_utc, left_at_utc, notes")
-        .eq("shift_id", currentShiftId)
-        .is("left_at_utc", null)
-        .order("entered_at_utc", { ascending: true });
-
-      if (!active) return;
-
-      const rawLogs = logsData || [];
-      setClosePositionCheck({
-        shiftId: currentShiftId,
-        failed: !!logsError || logsData === null,
-        activeCount: rawLogs.length,
-      });
-      if (rawLogs.length === 0) {
-        setActivePositionLogs([]);
-        return;
-      }
-
-      const userIds = [...new Set(rawLogs.map((item) => item.user_id).filter(Boolean))];
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("id, full_name")
-        .in("id", userIds);
-
-      if (!active) return;
-
-      const nameMap = new Map(
-        (profileData || []).map((item) => [item.id, item.full_name || "CTA ativo"]),
-      );
-
-      setActivePositionLogs(
-        rawLogs.map((item) => ({
-          ...item,
-          user_name: nameMap.get(item.user_id) || "CTA ativo",
-        })),
-      );
-    };
-
-    void loadActivePositionLogs();
-
-    return () => {
-      active = false;
-    };
-  }, [openShift?.id]);
-
+  const currentRead = dashboardRead?.scope === dashboardScope ? dashboardRead : null;
+  const snapshot = currentRead?.snapshot;
+  const shiftStatus = !dashboardScope || currentRead?.unavailable ? "unavailable" : snapshot ? "known" : "checking";
+  const openShift = snapshot?.shift ?? null;
+  const openShiftOpenedByName = snapshot?.openerName ?? "—";
+  const activeOccurrencesCount = shiftStatus === "known" ? snapshot?.occurrencesCount ?? null : null;
+  const activePendingCount = shiftStatus === "known" ? snapshot?.pendingCount ?? null : null;
+  const positionLogsCount = shiftStatus === "known" ? snapshot?.positionLogsCount ?? null : null;
+  const activePositions = shiftStatus === "known" ? snapshot?.activePositions ?? null : null;
+  const activePositionLogs = activePositions ?? [];
+  const lastEventSummary = getEventSummaryParts(snapshot?.latestEvent ?? null, timeDisplayMode, currentRead?.observedAt);
   const hasOpenShift = !!openShift;
-  const canCloseCurrentShift =
-    !!openShift && !!profile && openShift.opened_by === profile.id;
-  const { authority: shiftAuthority, pending: authorityPending } = useShiftAuthority(openShift?.id, profile?.id);
-  const canCreateOccurrence = shiftAuthority?.canCreateOccurrence === true;
+  const canCloseCurrentShift = !!openShift && !!profile && openShift.opened_by === profile.id;
+  const { authority: shiftAuthority, pending: authorityPending } = useShiftAuthority(
+    shiftStatus === "known" ? openShift?.id : null, profile?.id,
+  );
+  const canCreateOccurrence = shiftAuthority?.canCreateOccurrence === true && !openShift?.validated_at_utc;
   const isOpenShiftValidated = !!openShift?.validated_at_utc;
-  const requiresValidationForClose = hasOpenShift && activeOccurrencesCount > 0;
-  const operationalStatus = hasOpenShift ? "Turno aberto" : "Sem turno aberto";
+  const operationalStatus = shiftStatus === "known" ? hasOpenShift ? "Turno aberto" : "Sem turno aberto"
+    : shiftStatus === "checking" ? "A verificar o turno" : "Estado do turno indisponível";
   const sessionLine = [
     profile?.full_name || "—",
     profile?.role || "—",
@@ -949,36 +713,12 @@ export default function Home() {
     operationalStatus,
   ].join(" · ");
 
-  const quickAccessTurnActionLabel = hasOpenShift ? "Encerrar turno" : "Abrir turno";
-  const occurrenceCheck = closeOccurrenceCheck?.shiftId === openShift?.id
-    ? closeOccurrenceCheck : null;
-  const positionCheck = closePositionCheck?.shiftId === openShift?.id
-    ? closePositionCheck : null;
-  const quickAccessNeedsOccurrenceValidation =
-    !!occurrenceCheck && !occurrenceCheck.failed &&
-    requiresValidationForClose && !isOpenShiftValidated;
-  const quickAccessCloseReasons = [
-    quickAccessNeedsOccurrenceValidation ? "Validação pendente" : "",
-    positionCheck && !positionCheck.failed && positionCheck.activeCount > 0
-      ? "Posição ativa" : "",
-    !canCloseCurrentShift ? "Só quem abriu" : "",
-  ].filter(Boolean);
-  const quickAccessCloseLockLabel = !hasOpenShift ? null
-    : quickAccessCloseReasons.length > 0 ? quickAccessCloseReasons.join(" · ")
-    : positionCheck?.failed || (!isOpenShiftValidated && occurrenceCheck?.failed)
-      ? "Verificação indisponível"
-      : !positionCheck || (!isOpenShiftValidated && !occurrenceCheck)
-        ? "A verificar o turno"
-        : null;
-  const quickAccessTurnActionDescription = !hasOpenShift
-    ? "Iniciar novo turno"
-    : quickAccessNeedsOccurrenceValidation
-      ? canCloseCurrentShift
-        ? "Antes de fechar o turno, é preciso validar as ocorrências."
-        : "Antes de fechar o turno, é preciso validar as ocorrências. Só quem abriu o turno o pode encerrar."
-      : canCloseCurrentShift
-        ? (quickAccessCloseLockLabel ? "Consultar condições de fecho." : null)
-        : "Só quem abriu o turno o pode encerrar.";
+  const turnAction = getDashboardTurnAction({
+    shiftStatus, hasShift: hasOpenShift, isOpener: canCloseCurrentShift, validated: isOpenShiftValidated,
+    occurrences: activeOccurrencesCount, activePositions: activePositions?.length ?? null,
+  });
+  const { title: quickAccessTurnActionLabel, reason: quickAccessCloseLockLabel,
+    description: quickAccessTurnActionDescription } = turnAction;
   const shiftComposition = useMemo(
     () => extractCompositionLines(openShift?.opening_notes),
     [openShift?.opening_notes],
@@ -991,9 +731,11 @@ export default function Home() {
   const profileCardValue = currentUserShiftRole || profile?.role || "—";
   const canAccessAdmin = (profile?.role ?? "") === "ADMIN";
   const canManagePositionLogs = shiftAuthority?.canManagePositions === true;
-  const hasAnyPositionLogs = positionLogsCount > 0;
+  const hasAnyPositionLogs = (positionLogsCount ?? 0) > 0;
   const hasActivePositionLogs = activePositionLogs.length > 0;
-  const activePositionStatus = !hasOpenShift
+  const activePositionStatus = !activePositions
+    ? "Não foi possível confirmar as posições ativas."
+    : !hasOpenShift
     ? "Nenhum CTA ativo na posição operacional."
     : activePositionLogs.length === 0
     ? "Nenhum CTA ativo na posição operacional."
@@ -1005,84 +747,64 @@ export default function Home() {
         )
         .join(" · ");
   const hasNoActivePosition = !hasOpenShift || activePositionLogs.length === 0;
-  const primaryActionHref = !hasOpenShift
-    ? "/shifts/open"
-    : !hasAnyPositionLogs
-    ? "/shifts/logs"
-    : hasActivePositionLogs
-    ? canCreateOccurrence
-      ? "/occurrences/new"
-      : canManagePositionLogs
-      ? "/shifts/logs"
-      : "/occurrences"
-    : requiresValidationForClose && !isOpenShiftValidated
-    ? `/occurrences/${openShift?.id ?? ""}`
-    : canCloseCurrentShift
-    ? "/shifts/close"
-    : "/occurrences";
-  const primaryActionLabel = !hasOpenShift
-    ? "Abrir turno operacional"
-    : !hasAnyPositionLogs
-    ? canManagePositionLogs
-      ? "Registar entrada na posição"
-      : "Consultar logs operacionais"
-    : hasActivePositionLogs
-    ? canCreateOccurrence
-      ? "Registar nova entrada"
-      : canManagePositionLogs
-      ? "Gerir logs operacionais"
-      : "Consultar registos ATS"
-    : requiresValidationForClose && !isOpenShiftValidated
-    ? "Validar registo ATS"
-    : canCloseCurrentShift
-    ? "Encerrar turno"
-    : "Consultar registos ATS";
-  const primaryActionDescription = !hasOpenShift
-    ? "Abra o turno para iniciar o registo operacional."
-    : !hasAnyPositionLogs
-    ? canManagePositionLogs
-      ? "Registe a primeira entrada na posição operacional antes do restante fluxo do turno."
-      : positionLogAuthority.kind === "opener"
-        ? "Aguardar que quem abriu o turno registe a primeira entrada na posição operacional."
-        : positionLogAuthority.kind === "supervisor"
-          ? "Aguardar o supervisor para registar a entrada inicial na posição operacional."
-          : authorityPending
-            ? "A verificar a composição do turno…"
-            : !shiftAuthority
-              ? "Não foi possível verificar as permissões da composição do turno."
-              : "Não existe responsável identificado para registar a entrada na posição operacional."
-    : hasActivePositionLogs
-    ? canCreateOccurrence
-      ? "Com a posição operacional ativa, já pode registar entradas de ocorrência no turno."
-      : canManagePositionLogs
-      ? "Existem posições operacionais ativas. Gere os logs de entrada e saída antes do encerramento."
-      : "A operação está em curso. Consulte os registos ATS e acompanhe o estado do turno."
-    : requiresValidationForClose && !isOpenShiftValidated
-    ? "Os logs já foram encerrados. Valide agora o registo ATS antes de encerrar o turno."
-    : canCloseCurrentShift
-    ? "Os logs da posição já estão fechados e o turno pode ser encerrado."
-    : "Os logs da posição estão fechados. A consulta dos registos ATS continua disponível.";
+  const checksUnknown = shiftStatus !== "known" || (hasOpenShift && (activePositions === null ||
+    (activeOccurrencesCount === null && !isOpenShiftValidated) || positionLogsCount === null));
+  const primaryActionKind = getDashboardPrimaryActionKind({
+    turnAction, hasOpenShift, checksUnknown, hasAnyPositionLogs, hasActivePositionLogs,
+    canCreateOccurrence, canManagePositionLogs,
+  });
+  const firstPositionDescription = canManagePositionLogs
+    ? "Registe a primeira entrada na posição operacional antes do restante fluxo do turno."
+    : positionLogAuthority.kind === "opener"
+      ? "Aguardar que quem abriu o turno registe a primeira entrada na posição operacional."
+      : positionLogAuthority.kind === "supervisor"
+        ? "Aguardar o supervisor para registar a entrada inicial na posição operacional."
+        : authorityPending
+          ? "A verificar a composição do turno…"
+          : !shiftAuthority
+            ? "Não foi possível verificar as permissões da composição do turno."
+            : "Não existe responsável identificado para registar a entrada na posição operacional.";
+  const { href: primaryActionHref, label: primaryActionLabel, description: primaryActionDescription } = {
+    refresh: { href: null, label: "Atualizar estado",
+      description: "Aguarde pela verificação do turno ou atualize o estado para voltar a tentar." },
+    open: { href: turnAction.href, label: "Abrir turno operacional",
+      description: "Abra o turno para iniciar o registo operacional." },
+    firstPosition: { href: "/shifts/logs", label: canManagePositionLogs ? "Registar entrada na posição" : "Consultar logs operacionais",
+      description: firstPositionDescription },
+    newOccurrence: { href: "/occurrences/new", label: "Registar nova entrada",
+      description: "Com a posição operacional ativa, já pode registar entradas de ocorrência no turno." },
+    managePositions: { href: "/shifts/logs", label: "Gerir logs operacionais",
+      description: "Existem posições operacionais ativas. Gere os logs de entrada e saída antes do encerramento." },
+    validate: { href: openShift ? "/occurrences/" + openShift.id : null, label: "Validar registo ATS",
+      description: "Valide o registo ATS antes de encerrar o turno." },
+    close: { href: turnAction.href, label: "Encerrar turno",
+      description: "Os logs da posição já estão fechados e o turno pode ser encerrado." },
+    history: { href: "/occurrences", label: "Consultar registos ATS",
+      description: hasActivePositionLogs
+        ? "A operação está em curso. Consulte os registos ATS e acompanhe o estado do turno."
+        : "A consulta dos registos ATS continua disponível." },
+  }[primaryActionKind];
   const pendingItems = [
     {
       label:
-        hasOpenShift && activeOccurrencesCount > 0 && !isOpenShiftValidated
+        hasOpenShift && (activeOccurrencesCount ?? 0) > 0 && !isOpenShiftValidated
           ? `${activeOccurrencesCount} ocorrência(s) por validar`
-          : "Nenhuma ocorrência por validar",
+          : activeOccurrencesCount === null && !isOpenShiftValidated ? "Validação por confirmar" : "Nenhuma ocorrência por validar",
       tone:
-        hasOpenShift && activeOccurrencesCount > 0 && !isOpenShiftValidated
+        (activeOccurrencesCount === null || (hasOpenShift && activeOccurrencesCount > 0)) && !isOpenShiftValidated
           ? "text-amber-500"
           : "text-emerald-500",
     },
     {
-      label: hasOpenShift ? "Existe um turno em aberto" : "Nenhum turno em aberto",
-      tone: hasOpenShift ? "text-amber-500" : "text-emerald-500",
+      label: shiftStatus !== "known" ? "Estado do turno por confirmar" : hasOpenShift ? "Existe um turno em aberto" : "Nenhum turno em aberto",
+      tone: shiftStatus !== "known" || hasOpenShift ? "text-amber-500" : "text-emerald-500",
     },
     {
       label:
-        activePendingCount > 0
+        (activePendingCount ?? 0) > 0
           ? `${activePendingCount} seguimento(s) pendente(s)`
-          : "Nenhum seguimento pendente",
-      tone: activePendingCount > 0 ? "text-amber-500" : "text-emerald-500",
+          : activePendingCount === null ? "Seguimentos por confirmar" : "Nenhum seguimento pendente",
+      tone: activePendingCount === null || activePendingCount > 0 ? "text-amber-500" : "text-emerald-500",
     },
   ];
 
@@ -1124,7 +846,7 @@ export default function Home() {
       return;
     }
 
-    await loadProfileAndShift(loginData.user.id, true);
+    await loadProfile(loginData.user.id);
     setLoginLoading(false);
     router.replace("/");
     router.refresh();
@@ -1222,7 +944,7 @@ export default function Home() {
 
     setProfile(null);
     setAtsUnit(null);
-    setOpenShift(null);
+    setDashboardRead(null);
     setEmail("");
     setPassword("");
 
@@ -1353,7 +1075,7 @@ export default function Home() {
                         : "border-amber-200 bg-amber-50 text-amber-700"
                     }`}
                   >
-                    {hasOpenShift ? "Turno em curso" : "Sem registo ativo"}
+                    {shiftStatus === "known" ? hasOpenShift ? "Turno em curso" : "Sem registo ativo" : "Por confirmar"}
                   </span>
                 </div>
 
@@ -1448,7 +1170,7 @@ export default function Home() {
                   {primaryActionDescription}
                 </p>
 
-                <Link
+                {primaryActionHref ? <Link
                   href={primaryActionHref}
                   className={`dashboard-primary-action-btn ${appButtonClass("primary")} mt-auto inline-flex min-h-[92px] w-full items-center justify-center px-6 py-5 text-center text-[15px] hover:border-[#f28c28] hover:bg-[#f28c28] hover:shadow-[0_22px_38px_-18px_rgba(242,140,40,0.52)]`}
                 >
@@ -1460,7 +1182,11 @@ export default function Home() {
                       {primaryActionLabel}
                     </span>
                   </span>
-                </Link>
+                </Link> : <button type="button" disabled={!dashboardScope}
+                  onClick={() => refreshDashboardRef.current?.()}
+                  className={`${appButtonClass("secondary")} mt-auto inline-flex min-h-[92px] w-full items-center justify-center px-6 py-5`}>
+                  {primaryActionLabel}
+                </button>}
               </section>
             </div>
 
@@ -1479,13 +1205,13 @@ export default function Home() {
                       <QuickAccessCard
                         title={quickAccessTurnActionLabel}
                         description={quickAccessTurnActionDescription}
-                        icon={<LogoutIcon />}
+                        icon={hasOpenShift ? <LogoutIcon /> : <LoginIcon />}
                         locked
                         lockLabel={quickAccessCloseLockLabel}
                         accent="orange"
                         primary
                       />
-                      {canCloseCurrentShift && (
+                      {canCloseCurrentShift && shiftStatus === "known" && (
                         <Link
                           href="/shifts/close"
                           className="self-end text-xs font-medium text-slate-600 underline underline-offset-2"
@@ -1499,7 +1225,7 @@ export default function Home() {
                       title={quickAccessTurnActionLabel}
                       description={quickAccessTurnActionDescription}
                       icon={hasOpenShift ? <LogoutIcon /> : <LoginIcon />}
-                      href={hasOpenShift ? "/shifts/close" : "/shifts/open"}
+                      href={turnAction.href ?? undefined}
                       accent="orange"
                       primary
                     />
@@ -1513,7 +1239,7 @@ export default function Home() {
                     accent="blue"
                   />
 
-                  {hasOpenShift ? (
+                  {shiftStatus === "known" && hasOpenShift ? (
                     <QuickAccessCard
                       title="Logs operacionais"
                       description="Registar posição"
@@ -1524,14 +1250,15 @@ export default function Home() {
                   ) : (
                     <QuickAccessCard
                       title="Logs operacionais"
-                      description="Requer turno aberto"
+                      description={shiftStatus === "known" ? "Requer turno aberto" : "Estado do turno por confirmar"}
+                      lockLabel={shiftStatus === "known" ? "Requer turno aberto" : "Estado do turno por confirmar"}
                       icon={<UsersIcon />}
                       locked
                       accent="slate"
                     />
                   )}
 
-                  {hasOpenShift ? (
+                  {shiftStatus === "known" && hasOpenShift ? (
                     <QuickAccessCard
                       title="Relatórios"
                       description="Consultar relatório do turno"
@@ -1542,7 +1269,8 @@ export default function Home() {
                   ) : (
                     <QuickAccessCard
                       title="Relatórios"
-                      description="Requer turno aberto"
+                      description={shiftStatus === "known" ? "Requer turno aberto" : "Estado do turno por confirmar"}
+                      lockLabel={shiftStatus === "known" ? "Requer turno aberto" : "Estado do turno por confirmar"}
                       icon={<ChartIcon />}
                       locked
                       accent="slate"
@@ -1563,7 +1291,7 @@ export default function Home() {
                   {[
                     {
                       id: "open-shifts",
-                      value: hasOpenShift ? "1" : "0",
+                      value: shiftStatus !== "known" ? "—" : hasOpenShift ? "1" : "0",
                       label: (
                         <>
                           Turnos
@@ -1576,14 +1304,14 @@ export default function Home() {
                     },
                     {
                       id: "occurrences",
-                      value: String(activeOccurrencesCount),
+                      value: activeOccurrencesCount === null ? "—" : String(activeOccurrencesCount),
                       label: "Ocorrências Registadas",
                       icon: <FileIcon />,
                       tone: "text-[#1d4f91]",
                     },
                     {
                       id: "pending",
-                      value: String(activePendingCount),
+                      value: activePendingCount === null ? "—" : String(activePendingCount),
                       label: "Pendências",
                       icon: <ClipboardIcon />,
                       tone: "text-[#f28c28]",

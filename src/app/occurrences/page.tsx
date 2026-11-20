@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { filterShiftHistory, getSupervisorName, isFullOccurrenceReference, readShiftHistoryPages, type ShiftHistoryRow } from "@/lib/shift-history";
 import { formatUtcDateTime } from "@/lib/time";
 import {
   appButtonClass,
@@ -15,22 +16,6 @@ import {
   SelectField,
   SoftIcon,
 } from "@/components/siro-ui";
-
-type ShiftStaffRow = {
-  role_in_shift: string | null;
-};
-
-type ShiftRow = {
-  id: number;
-  shift_code: string;
-  operational_date: string;
-  start_time_utc: string | null;
-  end_time_utc: string | null;
-  status: string;
-  opening_notes: string | null;
-  handover_notes: string | null;
-  shift_staff?: ShiftStaffRow[] | null;
-};
 
 const PAGE_SIZE = 20;
 
@@ -57,15 +42,22 @@ function ListIcon() {
 }
 
 export default function OccurrencesPage() {
-  const [rows, setRows] = useState<ShiftRow[]>([]);
+  const [rows, setRows] = useState<ShiftHistoryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [unitId, setUnitId] = useState<number | null>(null);
+  const [resolvedOccurrence, setResolvedOccurrence] = useState<{
+    reference: string; unitId: number; ids: number[]; failed: boolean;
+  } | null>(null);
 
   useEffect(() => {
-    let active = true;
+    const controller = new AbortController();
+    const { signal } = controller;
 
     const timeoutId = window.setTimeout(() => {
       void (async () => {
@@ -73,7 +65,7 @@ export default function OccurrencesPage() {
           data: { user },
         } = await supabase.auth.getUser();
 
-        if (!active) return;
+        if (signal.aborted) return;
 
         if (!user) {
           setMessage("Sessão não encontrada.");
@@ -87,7 +79,7 @@ export default function OccurrencesPage() {
           .eq("id", user.id)
           .maybeSingle();
 
-        if (!active) return;
+        if (signal.aborted) return;
 
         if (profileError || !profileData) {
           setMessage("Não foi possível carregar o perfil.");
@@ -95,83 +87,76 @@ export default function OccurrencesPage() {
           return;
         }
 
-        const { data, error } = await supabase
-          .from("shifts")
-          .select(
-            `
-            id,
-            shift_code,
-            operational_date,
-            start_time_utc,
-            end_time_utc,
-            status,
-            opening_notes,
-            handover_notes,
-            shift_staff (
-              role_in_shift
-            )
-          `,
-          )
-          .eq("ats_unit_id", profileData.ats_unit_id)
-          .order("operational_date", { ascending: false })
-          .order("id", { ascending: false });
-
-        if (!active) return;
-
-        if (error) {
-          setMessage(`Erro ao carregar registos ATS: ${error.message}`);
+        const id = profileData.ats_unit_id;
+        if (!id) {
+          setMessage("Não foi possível identificar o órgão ATS.");
           setLoading(false);
           return;
         }
+        setUnitId(id);
 
-        setRows((data as ShiftRow[]) || []);
+        try {
+          const records = await readShiftHistoryPages<ShiftHistoryRow>(async (before) => {
+            let query = supabase.from("shifts")
+              .select("id, shift_code, operational_date, start_time_utc, end_time_utc, status, opening_notes, handover_notes, shift_staff(role_in_shift)")
+              .eq("ats_unit_id", id).order("id", { ascending: false }).limit(250);
+            if (before !== null) query = query.lt("id", before);
+            const { data, error } = await query.abortSignal(signal).returns<ShiftHistoryRow[]>();
+            if (error || !data) throw error ?? new Error("Histórico indisponível");
+            return data;
+          }, signal);
+          if (signal.aborted) return;
+          setRows(records.sort((a, b) => b.operational_date.localeCompare(a.operational_date) || b.id - a.id));
+        } catch {
+          if (signal.aborted) return;
+          setMessage("Não foi possível carregar o histórico dos turnos.");
+        }
         setLoading(false);
       })();
     }, 0);
 
     return () => {
-      active = false;
+      controller.abort();
       window.clearTimeout(timeoutId);
     };
   }, []);
 
-  const getSupervisorName = (row: ShiftRow) => {
-    const supervisor = row.shift_staff?.find((item) =>
-      (item.role_in_shift || "").toLowerCase().startsWith("supervisor"),
-    );
+  const referenceSearch = search.trim();
+  const looksLikeReference = isFullOccurrenceReference(referenceSearch);
 
-    if (!supervisor?.role_in_shift) return "Supervisor não indicado";
+  useEffect(() => {
+    if (!looksLikeReference || !unitId) return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          // A dedicated, parameterised filter: no raw PostgREST .or() or text search of other units.
+          const escaped = referenceSearch.replace(/[\\%_]/g, "\\$&");
+          const { data, error } = await supabase.from("occurrences").select("shift_id")
+            .eq("ats_unit_id", unitId).ilike("occurrence_number", escaped).abortSignal(controller.signal);
+          if (controller.signal.aborted) return;
+          setResolvedOccurrence({ reference: referenceSearch, unitId, failed: !!error,
+            ids: (data ?? []).map((row) => row.shift_id) });
+        } catch {
+          if (controller.signal.aborted) return;
+          setResolvedOccurrence({ reference: referenceSearch, unitId, failed: true, ids: [] });
+        }
+      })();
+    }, 250);
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [looksLikeReference, referenceSearch, unitId]);
 
-    const parts = supervisor.role_in_shift.split("·");
-    if (parts.length > 1) {
-      return parts.slice(1).join("·").trim() || "Supervisor não indicado";
-    }
+  const occurrenceResult = looksLikeReference && resolvedOccurrence?.reference === referenceSearch
+    && resolvedOccurrence.unitId === unitId ? resolvedOccurrence : null;
 
-    return supervisor.role_in_shift.trim() || "Supervisor não indicado";
-  };
+  const getSummaryText = (row: ShiftHistoryRow) =>
+    row.handover_notes || row.opening_notes || "Sem notas adicionais.";
 
-  const getSummaryText = (row: ShiftRow) => {
-    return row.handover_notes || row.opening_notes || "Sem notas adicionais.";
-  };
-
-  const filteredRows = useMemo(() => {
-    return rows.filter((row) => {
-      const q = search.toLowerCase();
-
-      const matchesSearch =
-        !search ||
-        row.shift_code?.toLowerCase().includes(q) ||
-        row.operational_date?.toLowerCase().includes(q) ||
-        row.status?.toLowerCase().includes(q) ||
-        row.opening_notes?.toLowerCase().includes(q) ||
-        row.handover_notes?.toLowerCase().includes(q) ||
-        getSupervisorName(row).toLowerCase().includes(q);
-
-      const matchesStatus = !statusFilter || row.status === statusFilter;
-
-      return matchesSearch && matchesStatus;
-    });
-  }, [rows, search, statusFilter]);
+  const filteredRows = useMemo(() => filterShiftHistory(rows, search, statusFilter, dateFrom, dateTo,
+    new Set(occurrenceResult?.ids ?? [])), [rows, search, statusFilter, dateFrom, dateTo, occurrenceResult]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
 
@@ -247,7 +232,7 @@ export default function OccurrencesPage() {
                   setCurrentPage(1);
                 }}
                 className={`${inputClass} pl-11`}
-                placeholder="Pesquisar por referência, supervisor, data, notas..."
+                placeholder="Código do turno ou ocorrência, supervisor, data, notas…"
               />
               <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400">
                 <SearchIcon />
@@ -271,6 +256,23 @@ export default function OccurrencesPage() {
               <option value="CLOSED">CLOSED</option>
             </SelectField>
           </div>
+          <label className={appLabelClass()}>
+            Data operacional inicial (UTC)
+            <input type="date" className={inputClass} value={dateFrom} max={dateTo || undefined}
+              onChange={(event) => { setDateFrom(event.target.value); setCurrentPage(1); }} />
+          </label>
+          <label className={appLabelClass()}>
+            Data operacional final (UTC)
+            <input type="date" className={inputClass} value={dateTo} min={dateFrom || undefined}
+              onChange={(event) => { setDateTo(event.target.value); setCurrentPage(1); }} />
+          </label>
+          <p className="self-end text-xs text-slate-500 xl:col-span-2">
+            A data é a da abertura do turno em UTC, mesmo que termine no dia seguinte.
+            A referência completa de uma ocorrência localiza o turno em que foi registada.
+          </p>
+          {looksLikeReference && !occurrenceResult && <p role="status" className="text-sm text-slate-500">A procurar a referência da ocorrência…</p>}
+          {occurrenceResult?.failed && <p role="status" className="text-sm text-amber-700">Não foi possível consultar referências de ocorrências.</p>}
+          {dateFrom && dateTo && dateFrom > dateTo && <p role="status" className="text-sm text-amber-700">A data inicial deve ser anterior ou igual à data final.</p>}
         </div>
       </SectionCard>
 
