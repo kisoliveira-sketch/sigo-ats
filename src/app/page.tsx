@@ -7,6 +7,8 @@ import { useRouter } from "next/navigation";
 import { getFriendlyErrorMessage } from "@/lib/friendly-errors";
 import { supabase } from "@/lib/supabase";
 import { getDashboardPrimaryActionKind, getDashboardTurnAction, readDashboardSnapshot, startDashboardRefresh, type DashboardSnapshot } from "@/lib/dashboard-refresh";
+import { CompactDashboard } from "@/components/compact-dashboard";
+import dashboardLayoutStyles from "@/components/compact-dashboard.module.css";
 import { useShiftAuthority } from "@/lib/shift-authority";
 import {
   AppFooter,
@@ -980,7 +982,25 @@ export default function Home() {
           resolvedThemeDisplayMode === "dark" ? "dashboard-theme-dark" : ""
         }`}
       >
-        <div className="mx-auto max-w-7xl p-5 lg:p-7">
+        <CompactDashboard
+          unitName={atsUnit?.name ?? null} userName={profile.full_name || "—"}
+          profileLabel={profileCardLabel} profileValue={profileCardValue}
+          managerLabel={positionLogAuthority.kind === "opener" ? "Responsável pelos logs" : "Supervisor do turno"}
+          managerName={positionLogResponsible}
+          theme={themeDisplayMode} onTheme={setThemeDisplayMode} time={timeDisplayMode} onTime={setTimeDisplayMode}
+          onLogout={handleLogout} logoutLoading={logoutLoading} canAccessAdmin={canAccessAdmin} lastEvent={lastEventSummary}
+          shiftStatus={shiftStatus} shiftReference={openShift?.shift_code ?? null}
+          shiftStartLabel={formatTimeByPreference(openShift?.start_time_utc ?? null, timeDisplayMode)}
+          shiftId={openShift?.id ?? null} operationalStatus={operationalStatus} hasOpenShift={hasOpenShift}
+          activePositionStatus={activePositionStatus} activePositionCount={activePositions?.length ?? null}
+          occurrenceCount={activeOccurrencesCount} followupCount={activePendingCount}
+          pending={pendingItems.map((item) => ({ label: item.label, attention: item.tone === "text-amber-500" }))}
+          composition={shiftComposition} primary={{ kind: primaryActionKind, href: primaryActionHref, label: primaryActionLabel, description: primaryActionDescription }}
+          turn={{ label: quickAccessTurnActionLabel, href: turnAction.href, reason: quickAccessCloseLockLabel }}
+          canViewCloseRequirements={!!quickAccessCloseLockLabel && canCloseCurrentShift && shiftStatus === "known"}
+          canRefresh={!!dashboardScope} onRefresh={() => refreshDashboardRef.current?.()}
+        />
+        <div className={`${dashboardLayoutStyles.desktop} mx-auto max-w-7xl p-5 lg:p-7`} data-desktop-dashboard="">
           <header className="overflow-hidden rounded-[1.05rem] border border-slate-200 bg-white shadow-[0_20px_40px_-34px_rgba(15,23,42,0.18)]">
             <div className="flex items-start justify-between gap-4 px-6 py-5">
               <div>
