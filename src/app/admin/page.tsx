@@ -15,6 +15,7 @@ import {
 } from "@/components/siro-ui";
 
 type PreviewShift = {
+  updated_at: string;
   id: number;
   shift_code: string;
   operational_date: string;
@@ -39,6 +40,7 @@ type AtsUnitOption = {
 };
 
 type CleanupOverview = {
+  resetEnabled: boolean;
   counts: {
     shifts: number;
     occurrences: number;
@@ -645,6 +647,7 @@ export default function AdminPage() {
     setPreviewLoading(true);
     setMessage("");
     setConfirmReset(false);
+    setSelectedShiftIds([]);
 
     try {
       const payload = await fetchCleanupOverview({
@@ -653,7 +656,7 @@ export default function AdminPage() {
         atsUnitId,
       });
       setCleanupOverview(payload);
-      setSelectedShiftIds(payload.preview?.shifts.map((shift) => shift.id) ?? []);
+      setSelectedShiftIds([]);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Erro desconhecido");
       setMessageTone("error");
@@ -663,7 +666,7 @@ export default function AdminPage() {
   };
 
   const executeReset = async () => {
-    if (!confirmReset) {
+    if (!cleanupOverview?.resetEnabled || !selectedShiftIds.length || !confirmReset) {
       setMessage("Confirme a operação antes de limpar os registos.");
       setMessageTone("error");
       return;
@@ -700,12 +703,23 @@ export default function AdminPage() {
         dateTo,
         atsUnitId,
         selectedShiftIds,
+        selectedShiftVersions: selectedShiftIds.map((id) => cleanupOverview.preview?.shifts.find((shift) => shift.id === id)?.updated_at),
       }),
-    });
+    }).catch(() => null);
 
+    if (!response) {
+      setMessage("Resultado por confirmar. Atualize a pré-visualização e consulte a auditoria antes de repetir.");
+      setMessageTone("error");
+      setConfirmReset(false);
+      setSelectedShiftIds([]);
+      setResetting(false);
+      return;
+    }
     const payload = await response.json().catch(() => null);
 
-    if (!response.ok) {
+    if (!response.ok || payload?.success !== true) {
+      setConfirmReset(false);
+      setSelectedShiftIds([]);
       setMessage(
         getFriendlyErrorMessage(
           "Não foi possível limpar os registos operacionais",
@@ -739,7 +753,7 @@ export default function AdminPage() {
   };
 
   const handleReset = () => {
-    if (!confirmReset) {
+    if (!cleanupOverview?.resetEnabled || !selectedShiftIds.length || !confirmReset) {
       setMessage("Confirme a operação antes de limpar os registos.");
       setMessageTone("error");
       return;
@@ -758,7 +772,7 @@ export default function AdminPage() {
       kind: "reset-records",
       title: "Confirmar limpeza de registos operacionais",
       description:
-        "Esta ação apaga turnos, ocorrências e logs de posição reais no Supabase, dentro do filtro e da seleção atual. Revise com cuidado antes de confirmar.",
+        "Esta ação apaga os turnos encerrados selecionados e os respetivos registos de equipa, ocorrências e logs de posição. Revise antes de confirmar.",
       confirmLabel: "Confirmar limpeza",
     });
   };
@@ -1849,7 +1863,7 @@ export default function AdminPage() {
             <div className="mt-5 rounded-[0.9rem] border border-slate-200 bg-white">
               <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 md:flex-row md:items-center md:justify-between">
                 <div className="text-[13px] font-semibold text-slate-700">
-                  Turnos incluídos na pré-visualização
+                  Até 20 turnos encerrados selecionáveis
                 </div>
                 <button
                   type="button"
@@ -1890,9 +1904,15 @@ export default function AdminPage() {
             </div>
           ) : null}
 
+          <p className="mt-4 text-sm text-slate-600">
+            As contagens da pré-visualização abrangem todos os turnos encerrados do filtro.
+            Turnos abertos nunca são elegíveis.
+            {!cleanupOverview?.resetEnabled && " O apagamento está desativado; pode consultar a pré-visualização."}
+          </p>
           <label className="mt-4 flex items-start gap-3 text-sm text-slate-600">
             <input
               type="checkbox"
+              disabled={!cleanupOverview?.resetEnabled}
               checked={confirmReset}
               onChange={(e) => setConfirmReset(e.target.checked)}
               className={appCheckboxClass()}
@@ -1906,7 +1926,7 @@ export default function AdminPage() {
             <button
               type="button"
               onClick={handleReset}
-              disabled={resetting || loading || previewLoading}
+              disabled={!cleanupOverview?.resetEnabled || !selectedShiftIds.length || !confirmReset || resetting || loading || previewLoading}
               className="inline-flex items-center justify-center rounded-[0.8rem] border border-red-600 bg-red-600 px-4 py-2.5 text-[14px] font-semibold text-white transition duration-200 hover:-translate-y-0.5 hover:border-red-700 hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {resetting ? "A limpar..." : "Apagar registos selecionados"}
@@ -1930,8 +1950,8 @@ export default function AdminPage() {
               diretamente sobre os dados reais do Supabase.
             </div>
             <div className="rounded-[0.85rem] border border-slate-200 bg-slate-50/70 px-4 py-4">
-              A gestão de registos apaga apenas <strong>turnos</strong>,{" "}
-              <strong>ocorrências</strong> e <strong>logs de posição</strong>.
+              A gestão de registos apaga <strong>turnos encerrados</strong> e os respetivos{" "}
+              <strong>registos de equipa, ocorrências e logs de posição</strong>.
               Perfis, utilizadores e órgãos ATS mantêm-se intactos.
             </div>
           </div>

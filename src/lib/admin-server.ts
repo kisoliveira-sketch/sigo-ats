@@ -30,6 +30,7 @@ export function getAdminSupabaseClients() {
 export async function getAuthorizedAdminContext(
   request: NextRequest,
   allowedRoles: string[],
+  { requireMfa = false }: { requireMfa?: boolean } = {},
 ): Promise<
   | {
       adminClient: SupabaseClient;
@@ -78,6 +79,18 @@ export async function getAuthorizedAdminContext(
         message: "Não foi possível validar a sessão.",
       },
     };
+  }
+
+  // The exact bearer token was verified by Supabase Auth above. Require its
+  // current assurance level, not the user's ability to enroll/upgrade later.
+  if (requireMfa) try {
+    const { data: assurance, error } =
+      await clients.authClient.auth.mfa.getAuthenticatorAssuranceLevel(token);
+    if (error || assurance?.currentLevel !== "aal2") {
+      return { error: { status: 403, message: "Valide a sessão com MFA para aceder à administração." } };
+    }
+  } catch {
+    return { error: { status: 403, message: "Não foi possível verificar o MFA da sessão." } };
   }
 
   const { data: profile, error: profileError } = await clients.adminClient

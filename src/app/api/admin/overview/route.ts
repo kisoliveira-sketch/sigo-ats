@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthorizedAdminContext } from "@/lib/admin-server";
+import { readAllAdminRows } from "@/lib/admin-paginated-read";
 
 type ProfileRow = {
   id: string;
@@ -85,45 +86,40 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const [profilesResult, unitsResult, shiftsResult, occurrencesResult, logsResult] =
-      await Promise.all([
-        auth.adminClient
-          .from("profiles")
-          .select("id, full_name, email, role, ats_unit_id")
-          .order("full_name", { ascending: true }),
-        auth.adminClient
-          .from("ats_units")
-          .select("id, name, code, is_active")
-          .order("name", { ascending: true }),
-        auth.adminClient
-          .from("shifts")
-          .select(
-            "id, shift_code, operational_date, status, ats_unit_id, opened_by, validated_by, validated_at_utc, start_time_utc, end_time_utc, opening_notes",
-          )
-          .order("id", { ascending: false }),
-        auth.adminClient
-          .from("occurrences")
-          .select(
-            "id, occurrence_number, occurrence_at_utc, severity, created_by, ats_unit_id, shift_id, occurrence_categories:category_id ( name, code )",
-          )
-          .order("occurrence_at_utc", { ascending: false }),
-        auth.adminClient
-          .from("shift_position_logs")
-          .select("id, user_id, shift_id, ats_unit_id, entered_at_utc, left_at_utc")
-          .order("entered_at_utc", { ascending: false }),
-      ]);
-
-    if (profilesResult.error) throw profilesResult.error;
-    if (unitsResult.error) throw unitsResult.error;
-    if (shiftsResult.error) throw shiftsResult.error;
-    if (occurrencesResult.error) throw occurrencesResult.error;
-    if (logsResult.error) throw logsResult.error;
-
-    const profiles = (profilesResult.data ?? []) as ProfileRow[];
-    const units = (unitsResult.data ?? []) as AtsUnitRow[];
-    const shifts = (shiftsResult.data ?? []) as ShiftRow[];
-    const occurrences = (occurrencesResult.data ?? []) as OccurrenceRow[];
-    const logs = (logsResult.data ?? []) as PositionLogRow[];
+    const limit = 250;
+    const [profiles, units, shifts, occurrences, logs] = await Promise.all([
+      readAllAdminRows<ProfileRow>((after) => {
+        const page = auth.adminClient.from("profiles").select("id,full_name,email,role,ats_unit_id")
+          .order("id", { ascending: true }).limit(limit);
+        return (after === null ? page : page.gt("id", after)).returns<ProfileRow[]>();
+      }),
+      readAllAdminRows<AtsUnitRow>((after) => {
+        const page = auth.adminClient.from("ats_units").select("id,name,code,is_active")
+          .order("id", { ascending: true }).limit(limit);
+        return (after === null ? page : page.gt("id", after)).returns<AtsUnitRow[]>();
+      }),
+      readAllAdminRows<ShiftRow>((after) => {
+        const page = auth.adminClient.from("shifts")
+          .select("id,shift_code,operational_date,status,ats_unit_id,opened_by,validated_by,validated_at_utc,start_time_utc,end_time_utc,opening_notes")
+          .order("id", { ascending: true }).limit(limit);
+        return (after === null ? page : page.gt("id", after)).returns<ShiftRow[]>();
+      }),
+      readAllAdminRows<OccurrenceRow>((after) => {
+        const page = auth.adminClient.from("occurrences")
+          .select("id,occurrence_number,occurrence_at_utc,severity,created_by,ats_unit_id,shift_id,occurrence_categories:category_id(name,code)")
+          .order("id", { ascending: true }).limit(limit);
+        return (after === null ? page : page.gt("id", after)).returns<OccurrenceRow[]>();
+      }),
+      readAllAdminRows<PositionLogRow>((after) => {
+        const page = auth.adminClient.from("shift_position_logs").select("id,user_id,shift_id,ats_unit_id,entered_at_utc,left_at_utc")
+          .order("id", { ascending: true }).limit(limit);
+        return (after === null ? page : page.gt("id", after)).returns<PositionLogRow[]>();
+      }),
+    ]);
+    profiles.sort((a,b) => (a.full_name ?? "").localeCompare(b.full_name ?? ""));
+    units.sort((a,b) => a.name.localeCompare(b.name));
+    shifts.reverse();
+    occurrences.sort((a,b) => Date.parse(b.occurrence_at_utc ?? "") - Date.parse(a.occurrence_at_utc ?? "") || b.id - a.id);
 
     const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
     const unitsById = new Map(units.map((unit) => [unit.id, unit]));
