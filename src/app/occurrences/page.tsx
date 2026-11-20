@@ -168,6 +168,8 @@ export default function OccurrencesPage() {
   }, [filteredRows, safeCurrentPage]);
 
   const inputClass = appFieldClass();
+  // iOS Safari's native date controls can otherwise exceed their grid cell.
+  const dateInputClass = `${inputClass} block box-border min-w-0 max-w-full max-md:appearance-none`;
 
   const getStatusBadge = (status: string) => {
     return status === "OPEN"
@@ -219,7 +221,7 @@ export default function OccurrencesPage() {
         }
         title="Filtros"
       >
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           <div className="xl:col-span-3">
             <label className="mb-2 block text-sm font-medium text-slate-700">
               Pesquisa
@@ -256,14 +258,14 @@ export default function OccurrencesPage() {
               <option value="CLOSED">CLOSED</option>
             </SelectField>
           </div>
-          <label className={appLabelClass()}>
+          <label className={`${appLabelClass()} min-w-0`}>
             Data operacional inicial (UTC)
-            <input type="date" className={inputClass} value={dateFrom} max={dateTo || undefined}
+            <input type="date" className={dateInputClass} value={dateFrom} max={dateTo || undefined}
               onChange={(event) => { setDateFrom(event.target.value); setCurrentPage(1); }} />
           </label>
-          <label className={appLabelClass()}>
+          <label className={`${appLabelClass()} min-w-0`}>
             Data operacional final (UTC)
-            <input type="date" className={inputClass} value={dateTo} min={dateFrom || undefined}
+            <input type="date" className={dateInputClass} value={dateTo} min={dateFrom || undefined}
               onChange={(event) => { setDateTo(event.target.value); setCurrentPage(1); }} />
           </label>
           <p className="self-end text-xs text-slate-500 xl:col-span-2">
