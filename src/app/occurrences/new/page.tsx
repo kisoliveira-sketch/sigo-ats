@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getFriendlyErrorMessage } from "@/lib/friendly-errors";
 import { supabase } from "@/lib/supabase";
@@ -83,7 +83,7 @@ export default function NewOccurrencePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [openShift, setOpenShift] = useState<OpenShift | null>(null);
   const [categories, setCategories] = useState<OccurrenceCategory[]>([]);
-  const [existingCount, setExistingCount] = useState(0);
+  const [savedOccurrenceNumber, setSavedOccurrenceNumber] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
@@ -110,10 +110,7 @@ export default function NewOccurrencePage() {
   const [weatherContext, setWeatherContext] = useState("");
   const [requiresFollowup, setRequiresFollowup] = useState(false);
 
-  const occurrenceNumber = useMemo(() => {
-    if (!openShift) return "—";
-    return `${openShift.shift_code}-OCC-${String(existingCount + 1).padStart(3, "0")}`;
-  }, [existingCount, openShift]);
+  const occurrenceNumber = savedOccurrenceNumber ?? "Atribuída ao gravar";
 
   useEffect(() => {
     let active = true;
@@ -210,31 +207,6 @@ export default function NewOccurrencePage() {
         setCategoryId(String(initialCategories[0].id));
       }
 
-      if (!openShiftData) {
-        setLoading(false);
-        return;
-      }
-
-      const { count, error: countError } = await supabase
-        .from("occurrences")
-        .select("id", { count: "exact", head: true })
-        .eq("shift_id", openShiftData.id);
-
-      if (!active) return;
-
-      if (countError) {
-        setMessage(
-          getFriendlyErrorMessage(
-            "Não foi possível preparar a referência da nova entrada",
-            countError.message,
-          ),
-        );
-        setMessageType("error");
-        setLoading(false);
-        return;
-      }
-
-      setExistingCount(count ?? 0);
       setLoading(false);
     };
 
@@ -316,7 +288,6 @@ export default function NewOccurrencePage() {
       .insert({
         ats_unit_id: profile.ats_unit_id,
         shift_id: openShift.id,
-        occurrence_number: occurrenceNumber,
         occurrence_at_utc: occurrenceAtIso,
         category_id: Number(categoryId),
         severity,
@@ -335,7 +306,7 @@ export default function NewOccurrencePage() {
         requires_followup: requiresFollowup,
         created_by: user.id,
       })
-      .select("id")
+      .select("id, occurrence_number")
       .single();
 
     if (error || !data) {
@@ -350,14 +321,18 @@ export default function NewOccurrencePage() {
       return;
     }
 
-    setMessage("Entrada registada com sucesso. A abrir o registo ATS...");
+    const savedReference = typeof data.occurrence_number === "string" ? data.occurrence_number : null;
+    const successMessage = savedReference
+      ? `Entrada registada: ${savedReference}.`
+      : "Entrada registada com sucesso.";
+    setSavedOccurrenceNumber(savedReference);
+    setMessage(`${successMessage} A abrir o registo ATS...`);
     setMessageType("success");
-    setExistingCount((current) => current + 1);
     setSaving(false);
     setRedirecting(true);
     window.sessionStorage.setItem(
       "siro-occurrence-success",
-      "Entrada registada com sucesso.",
+      successMessage,
     );
 
     setTimeout(() => {
