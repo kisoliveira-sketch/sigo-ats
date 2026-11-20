@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getFriendlyErrorMessage } from "@/lib/friendly-errors";
 import { supabase } from "@/lib/supabase";
 import { formatUtcDateTime, getCurrentUtcIso } from "@/lib/time";
@@ -70,6 +70,11 @@ function extractCompositionLines(openingNotes: string | null) {
 
 export default function CloseShiftPage() {
   const router = useRouter();
+  const verificationGeneration = useRef(0);
+  const handoverShiftId = useRef<number | null>(null);
+  const [verificationAttempt, setVerificationAttempt] = useState(0);
+  const [verifiedShiftId, setVerifiedShiftId] = useState<number | null>(null);
+  const [verificationFailed, setVerificationFailed] = useState(false);
 
   const [openShift, setOpenShift] = useState<OpenShift | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -86,6 +91,21 @@ export default function CloseShiftPage() {
   const [handoverNotes, setHandoverNotes] = useState("");
   const [confirmClose, setConfirmClose] = useState(false);
 
+  const canUseVerification =
+    !loading && !verificationFailed && openShift !== null &&
+    verifiedShiftId === openShift.id;
+
+  const retryVerification = () => {
+    verificationGeneration.current += 1;
+    setVerificationAttempt(verificationGeneration.current);
+    setVerifiedShiftId(null);
+    setVerificationFailed(false);
+    setLoading(true);
+    setConfirmClose(false);
+    setMessage("");
+    setMessageType("");
+  };
+
   const pendingFollowups = useMemo(
     () => occurrences.filter((item) => item.requires_followup).length,
     [occurrences],
@@ -98,6 +118,16 @@ export default function CloseShiftPage() {
 
   useEffect(() => {
     let active = true;
+    const isCurrent = () =>
+      active && verificationGeneration.current === verificationAttempt;
+    const failVerification = (detail: string) => {
+      if (!isCurrent()) return;
+      setVerifiedShiftId(null);
+      setVerificationFailed(true);
+      setMessage(detail);
+      setMessageType("error");
+      setLoading(false);
+    };
 
     const timeoutId = window.setTimeout(() => {
       void (async () => {
@@ -105,12 +135,10 @@ export default function CloseShiftPage() {
           data: { user },
         } = await supabase.auth.getUser();
 
-        if (!active) return;
+        if (!isCurrent()) return;
 
         if (!user) {
-          setMessage("Sessão não encontrada.");
-          setMessageType("error");
-          setLoading(false);
+          failVerification("Sessão não encontrada.");
           return;
         }
 
@@ -122,19 +150,15 @@ export default function CloseShiftPage() {
           .eq("id", user.id)
           .maybeSingle();
 
-        if (!active) return;
+        if (!isCurrent()) return;
 
         if (profileError || !profileData) {
-          setMessage("Não foi possível carregar o perfil.");
-          setMessageType("error");
-          setLoading(false);
+          failVerification("Não foi possível carregar o perfil.");
           return;
         }
 
         if (!profileData.ats_unit_id) {
-          setMessage("Perfil sem órgão ATS associado.");
-          setMessageType("error");
-          setLoading(false);
+          failVerification("Perfil sem órgão ATS associado.");
           return;
         }
 
@@ -149,42 +173,46 @@ export default function CloseShiftPage() {
           .limit(1)
           .maybeSingle();
 
-        if (!active) return;
+        if (!isCurrent()) return;
 
         if (openShiftError) {
-          setMessage(
-            getFriendlyErrorMessage(
-              "Não foi possível verificar se existe um turno aberto",
-              openShiftError.message,
-            ),
-          );
-          setMessageType("error");
-          setLoading(false);
+          failVerification(getFriendlyErrorMessage(
+            "Não foi possível verificar se existe um turno aberto",
+            openShiftError.message,
+          ));
           return;
         }
 
         if (!openShiftData) {
+          handoverShiftId.current = null;
+          setHandoverNotes("");
           setOpenShift(null);
           setOpenedByName("—");
           setLoading(false);
           return;
         }
 
+        if (handoverShiftId.current !== openShiftData.id) {
+          handoverShiftId.current = openShiftData.id;
+          setHandoverNotes("");
+        }
         setOpenShift(openShiftData as OpenShift);
 
+        let nextOpenedByName = "—";
         if (openShiftData.opened_by) {
-          const { data: openerProfile } = await supabase
-            .from("profiles")
-            .select("full_name")
-            .eq("id", openShiftData.opened_by)
-            .maybeSingle();
-
-          if (!active) return;
-
-          setOpenedByName(openerProfile?.full_name || "—");
-        } else {
-          setOpenedByName("—");
+          try {
+            const { data: openerProfile } = await supabase
+              .from("profiles")
+              .select("full_name")
+              .eq("id", openShiftData.opened_by)
+              .maybeSingle();
+            nextOpenedByName = openerProfile?.full_name || "—";
+          } catch {
+            // Display enrichment must not decide whether the turn can close.
+          }
         }
+        if (!isCurrent()) return;
+        setOpenedByName(nextOpenedByName);
 
         const { data: occurrenceData, error: occurrenceError } = await supabase
           .from("occurrences")
@@ -194,21 +222,17 @@ export default function CloseShiftPage() {
           .eq("shift_id", openShiftData.id)
           .order("occurrence_at_utc", { ascending: true });
 
-        if (!active) return;
+        if (!isCurrent()) return;
 
-        if (occurrenceError) {
-          setMessage(
-            getFriendlyErrorMessage(
-              "Não foi possível carregar as entradas deste turno",
-              occurrenceError.message,
-            ),
-          );
-          setMessageType("error");
-          setLoading(false);
+        if (occurrenceError || !Array.isArray(occurrenceData)) {
+          failVerification(getFriendlyErrorMessage(
+            "Não foi possível verificar as ocorrências deste turno",
+            occurrenceError?.message,
+          ));
           return;
         }
 
-        setOccurrences((occurrenceData as OccurrenceRow[]) || []);
+        setOccurrences(occurrenceData as OccurrenceRow[]);
 
         const [
           { count: activeLogCount, error: activeLogError },
@@ -226,59 +250,69 @@ export default function CloseShiftPage() {
             .order("entered_at_utc", { ascending: true }),
         ]);
 
-        if (!active) return;
+        if (!isCurrent()) return;
 
-        if (activeLogError || positionLogsError) {
-          setMessage(
-            getFriendlyErrorMessage(
-              "Não foi possível verificar os logs operacionais do turno",
-              activeLogError?.message || positionLogsError?.message,
-            ),
-          );
-          setMessageType("error");
-          setLoading(false);
+        if (activeLogError || positionLogsError ||
+            typeof activeLogCount !== "number" || !Number.isInteger(activeLogCount) ||
+            activeLogCount < 0 || !Array.isArray(positionLogsData)) {
+          failVerification(getFriendlyErrorMessage(
+            "Não foi possível verificar as posições operacionais deste turno",
+            activeLogError?.message || positionLogsError?.message,
+          ));
           return;
         }
 
-        setActivePositionLogCount(activeLogCount ?? 0);
-        setHasActivePositionLog((activeLogCount ?? 0) > 0);
-        const logs = (positionLogsData as PositionLog[]) || [];
+        const logs = positionLogsData as PositionLog[];
+        const confirmedActiveCount = Math.max(
+          activeLogCount, logs.filter((log) => log.left_at_utc === null).length,
+        );
+        setActivePositionLogCount(confirmedActiveCount);
+        setHasActivePositionLog(confirmedActiveCount > 0);
         setPositionLogs(logs);
 
         const uniqueUserIds = Array.from(new Set(logs.map((item) => item.user_id)));
+        let nextUserNames: Record<string, string> = {};
         if (uniqueUserIds.length > 0) {
-          const { data: profileRows } = await supabase
-            .from("profiles")
-            .select("id, full_name, email")
-            .in("id", uniqueUserIds);
-
-          if (!active) return;
-
-          setUserNameMap(
-            (profileRows || []).reduce<Record<string, string>>((acc, item) => {
+          try {
+            const { data: profileRows } = await supabase
+              .from("profiles")
+              .select("id, full_name, email")
+              .in("id", uniqueUserIds);
+            nextUserNames = (profileRows || []).reduce<Record<string, string>>((acc, item) => {
               acc[item.id] = item.full_name || item.email;
               return acc;
-            }, {}),
-          );
-        } else {
-          setUserNameMap({});
+            }, {});
+          } catch {
+            // Names are optional; the log records and active count are not.
+          }
         }
 
+        if (!isCurrent()) return;
+        setUserNameMap(nextUserNames);
+        setVerifiedShiftId(openShiftData.id);
         setLoading(false);
-      })();
+      })().catch(() => {
+        failVerification("Não foi possível concluir a verificação do turno.");
+      });
     }, 0);
 
     return () => {
       active = false;
       window.clearTimeout(timeoutId);
     };
-  }, []);
+  }, [verificationAttempt]);
 
   const handleCloseShift = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!openShift) {
       setMessage("Não existe turno aberto para encerrar.");
+      setMessageType("error");
+      return;
+    }
+
+    if (!canUseVerification || verificationGeneration.current !== verificationAttempt) {
+      setMessage("Não foi possível confirmar os requisitos de fecho. Tenta verificar novamente.");
       setMessageType("error");
       return;
     }
@@ -358,6 +392,8 @@ export default function CloseShiftPage() {
 
   const canCloseShift =
     !!openShift && !!currentUserId && openShift.opened_by === currentUserId;
+  const canConfirmClose = canUseVerification && canCloseShift && !hasActivePositionLog &&
+    (!requiresValidationBeforeClose || !!openShift?.validated_at_utc);
   const compositionLines = useMemo(
     () => extractCompositionLines(openShift?.opening_notes ?? null),
     [openShift?.opening_notes],
@@ -383,7 +419,7 @@ export default function CloseShiftPage() {
         </>
       }
     >
-      {message && (
+      {message && !verificationFailed && (
         <div
           className={`mb-6 rounded-[0.9rem] border px-4 py-4 text-sm ${
             messageType === "success"
@@ -406,6 +442,16 @@ export default function CloseShiftPage() {
           subtitle="A verificar turno ativo."
         >
           <div className="text-sm text-slate-500">A carregar...</div>
+        </SectionCard>
+      ) : verificationFailed || (openShift && !canUseVerification) ? (
+        <SectionCard
+          icon={<SoftIcon tone="amber"><AlertIcon /></SoftIcon>}
+          title="Não foi possível verificar o turno"
+          subtitle={message || "As ocorrências e as posições precisam de ser confirmadas antes do fecho."}
+        >
+          <button type="button" onClick={retryVerification} className={heroActionClass("primary")}>
+            Tentar novamente
+          </button>
         </SectionCard>
       ) : !openShift ? (
         <SectionCard
@@ -593,7 +639,7 @@ export default function CloseShiftPage() {
                     type="checkbox"
                     checked={confirmClose}
                     onChange={(e) => setConfirmClose(e.target.checked)}
-                    disabled={!canCloseShift}
+                    disabled={!canConfirmClose}
                     className={appCheckboxClass()}
                   />
                   <span>
@@ -739,7 +785,7 @@ export default function CloseShiftPage() {
 
             <button
               type="submit"
-              disabled={closing || !confirmClose || !canCloseShift}
+              disabled={closing || !confirmClose || !canConfirmClose}
               className={appButtonClass("primary")}
             >
               {closing ? "A encerrar..." : "Encerrar turno"}
