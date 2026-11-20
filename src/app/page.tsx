@@ -348,7 +348,9 @@ function QuickAccessCard({
       <div className="mt-auto flex items-end justify-end gap-1.5 pt-0.5">
         {locked ? (
           <>
-            <span className="text-right text-[11px] font-medium text-slate-400">{lockLabel}</span>
+            {lockLabel.trim() !== description?.trim() && (
+              <span className="text-right text-[11px] font-medium text-slate-400">{lockLabel}</span>
+            )}
             <span className={`flex h-7.5 w-7.5 shrink-0 items-center justify-center rounded-[0.68rem] border border-slate-200 bg-white ${accentClasses.lock}`}>
               <LockIcon />
             </span>
