@@ -324,7 +324,7 @@ function QuickAccessCard({
   primary = false,
 }: {
   title: string;
-  description: string;
+  description: string | null;
   icon: ReactNode;
   href?: string;
   locked?: boolean;
@@ -382,9 +382,11 @@ function QuickAccessCard({
           <p className={`text-[15px] font-semibold leading-5 ${accentClasses.title}`}>
             {title}
           </p>
-          <p className={`mt-px max-w-[11.5rem] text-[12px] leading-[1.05rem] ${accentClasses.description}`}>
-            {description}
-          </p>
+          {description && (
+            <p className={`mt-px max-w-[11.5rem] text-[12px] leading-[1.05rem] ${accentClasses.description}`}>
+              {description}
+            </p>
+          )}
         </div>
       </div>
 
@@ -1018,7 +1020,7 @@ export default function Home() {
         ? "Antes de fechar o turno, é preciso validar as ocorrências."
         : "Antes de fechar o turno, é preciso validar as ocorrências. Só quem abriu o turno o pode encerrar."
       : canCloseCurrentShift
-        ? "Consultar condições de fecho."
+        ? (quickAccessCloseLockLabel ? "Consultar condições de fecho." : null)
         : "Só quem abriu o turno o pode encerrar.";
   const shiftComposition = useMemo(
     () => extractCompositionLines(openShift?.opening_notes),
