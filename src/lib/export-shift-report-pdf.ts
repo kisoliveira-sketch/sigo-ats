@@ -1,4 +1,5 @@
 import { jsPDF } from "jspdf";
+import type { RecordedValidation } from "./shift-report-export";
 
 type ShiftDetail = {
   shift_code: string;
@@ -43,6 +44,8 @@ type ExportArgs = {
   equipmentSummary: string;
   occurrenceLevelSummary: string;
   pendingFollowupCount: number;
+  validation: RecordedValidation;
+  positionLogs?: Array<{ name: string | null; enteredAt: string; leftAt: string | null; notes: string | null }>;
 };
 
 function safe(value: string | null | undefined) {
@@ -72,6 +75,8 @@ export function exportShiftReportPdf({
   equipmentSummary,
   occurrenceLevelSummary,
   pendingFollowupCount,
+  validation,
+  positionLogs,
 }: ExportArgs) {
   const doc = new jsPDF({
     orientation: "p",
@@ -199,6 +204,8 @@ export function exportShiftReportPdf({
   addField("Supervisor", supervisor);
   addField("Início UTC", formatUtcDateTime(shift.start_time_utc));
   addField("Fim UTC", formatUtcDateTime(shift.end_time_utc));
+  addField("Âmbito", "Turno completo. Não aplica a pesquisa do ecrã.");
+  addField("Logs de posição", positionLogs ? "Incluídos neste PDF" : "Não incluídos neste PDF");
   addField("Número de entradas", String(entries.length));
   addField("Nível mais elevado de ocorrência", occurrenceLevelSummary);
   addField("Entradas com follow-up", String(pendingFollowupCount));
@@ -225,6 +232,7 @@ export function exportShiftReportPdf({
   addBlank();
 
   addSectionTitle("7. RESUMO DAS ENTRADAS ATS");
+  if (!entries.length) addParagraph("Sem ocorrências registadas neste turno.");
   entries.forEach((entry, index) => {
     ensureSpace(12);
     doc.setFont("helvetica", "bold");
@@ -239,6 +247,7 @@ export function exportShiftReportPdf({
 
   addBlank(2);
   addSectionTitle("8. DESCRIÇÃO DETALHADA DAS ENTRADAS");
+  if (!entries.length) addParagraph("Sem ocorrências a detalhar.");
 
   entries.forEach((entry, index) => {
     ensureSpace(14);
@@ -269,19 +278,40 @@ export function exportShiftReportPdf({
     if (index < entries.length - 1) addRule();
   });
 
-  addBlank(4);
-  ensureSpace(20);
+  if (positionLogs) {
+    addBlank(3);
+    addSectionTitle("ANEXO. LOGS OPERACIONAIS DA POSIÇÃO");
+    if (!positionLogs.length) addParagraph("Sem logs de posição registados neste turno.");
+    positionLogs.forEach((log, index) => {
+      ensureSpace(24);
+      addField("Registo", String(index + 1));
+      addField("CTA", safe(log.name));
+      addField("Entrada", formatUtcDateTime(log.enteredAt));
+      addField("Saída", log.leftAt ? formatUtcDateTime(log.leftAt) : "Ainda sem saída registada");
+      if (log.notes) addField("Nota", log.notes);
+      if (index < positionLogs.length - 1) addRule();
+    });
+  }
 
-  addSectionTitle("9. VALIDAÇÃO");
+  addBlank(4);
+  addSectionTitle("9. VALIDAÇÃO REGISTADA NO SISTEMA");
+  addField("Estado", validation.recorded ? "Validação registada" : "Sem validação registada");
+  if (validation.recorded) {
+    addField("Validado por", validation.by);
+    addField("Data/hora da validação", validation.atUtc);
+  }
+
+  addBlank(4);
+  ensureSpace(27);
+  addSectionTitle("ASSINATURA MANUSCRITA (SE APLICÁVEL)");
   y += 8;
   doc.line(left, y, 90, y);
   doc.line(115, y, pageWidth - right, y);
-
   y += 4;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8.5);
-  doc.text("Supervisor / responsável", left, y);
-  doc.text("Data", 115, y);
+  doc.text("Assinatura do responsável", left, y);
+  doc.text("Data da assinatura", 115, y);
 
   const pageCount = doc.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {

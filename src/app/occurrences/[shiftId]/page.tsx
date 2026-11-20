@@ -7,6 +7,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { exportShiftReportPdf } from "@/lib/export-shift-report-pdf";
+import { buildShiftReportCsv, FULL_REPORT_SCOPE, getRecordedValidation, isShiftReportReady,
+  PRINT_REPORT_SCOPE, readCompleteReportRows, shiftReportCsvName } from "@/lib/shift-report-export";
 import { formatUtcDateTime, formatUtcTime, getCurrentUtcIso } from "@/lib/time";
 import {
   AppFooter,
@@ -21,6 +23,7 @@ import {
 type ShiftDetail = {
   id: number;
   shift_code: string;
+  ats_unit_id: number;
   operational_date: string;
   start_time_utc: string | null;
   end_time_utc: string | null;
@@ -34,6 +37,7 @@ type ShiftDetail = {
 
 type CurrentProfile = {
   id: string;
+  ats_unit_id: number | null;
   role: string;
   full_name: string | null;
 };
@@ -269,9 +273,13 @@ export default function ShiftRecordDetailPage() {
   const [entries, setEntries] = useState<EntryRow[]>([]);
   const [positionLogs, setPositionLogs] = useState<PositionLogRow[]>([]);
   const [authorsMap, setAuthorsMap] = useState<Record<string, string>>({});
+  const [personNames, setPersonNames] = useState<Record<string, string>>({});
+  const [loadedReportShiftId, setLoadedReportShiftId] = useState<number | null>(null);
+  const [includePositionLogs, setIncludePositionLogs] = useState(false);
+  const [reloadReport, setReloadReport] = useState(0);
   const [currentProfile, setCurrentProfile] = useState<CurrentProfile | null>(null);
   const [openedByName, setOpenedByName] = useState("—");
-  const [validatedByName, setValidatedByName] = useState("—");
+  const [validatedByName, setValidatedByName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [validating, setValidating] = useState(false);
@@ -301,6 +309,16 @@ export default function ShiftRecordDetailPage() {
 
     const initPage = async () => {
       setLoading(true);
+      setLoadedReportShiftId(null);
+      setIncludePositionLogs(false);
+      setEntries([]);
+      setPositionLogs([]);
+      setAuthorsMap({});
+      setPersonNames({});
+      setOpenedByName("—");
+      setValidatedByName(null);
+      setShift(null);
+      setCurrentProfile(null);
       setMessage("");
 
       const {
@@ -317,7 +335,7 @@ export default function ShiftRecordDetailPage() {
 
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
-        .select("id, role, full_name")
+        .select("id, role, full_name, ats_unit_id")
         .eq("id", user.id)
         .maybeSingle();
 
@@ -337,6 +355,7 @@ export default function ShiftRecordDetailPage() {
           `
           id,
           shift_code,
+          ats_unit_id,
           operational_date,
           start_time_utc,
           end_time_utc,
@@ -361,66 +380,68 @@ export default function ShiftRecordDetailPage() {
 
       setShift(shiftData as ShiftDetail);
 
-      const { data: entriesData, error: entriesError } = await supabase
-        .from("occurrences")
-        .select(
-          `
-          id,
-          occurrence_number,
-          severity,
-          occurrence_at_utc,
-          description_factual,
-          involved_entities,
-          actions_taken,
-          outcome,
-          communications_made,
-          documentary_reference,
-          callsign,
-          aircraft_registration,
-          aircraft_type,
-          equipment_reference,
-          location_detail,
-          weather_context,
-          requires_followup,
-          created_by,
-          occurrence_categories:category_id (
-            name,
-            code
-          )
-        `,
-        )
-        .eq("shift_id", Number(shiftId))
-        .order("occurrence_at_utc", { ascending: true });
-
-      if (!active) return;
-
-      if (entriesError) {
-        setMessage(`Erro ao carregar entradas: ${entriesError.message}`);
+      let loadedEntries: EntryRow[] = [];
+      let loadedPositionLogs: PositionLogRow[] = [];
+      try {
+        const [rawEntries, logs] = await Promise.all([
+          readCompleteReportRows<RawEntryRow>(async (before) => {
+            let query = supabase.from("occurrences").select(
+              `
+              id,
+              occurrence_number,
+              severity,
+              occurrence_at_utc,
+              description_factual,
+              involved_entities,
+              actions_taken,
+              outcome,
+              communications_made,
+              documentary_reference,
+              callsign,
+              aircraft_registration,
+              aircraft_type,
+              equipment_reference,
+              location_detail,
+              weather_context,
+              requires_followup,
+              created_by,
+              occurrence_categories:category_id (
+                name,
+                code
+              )
+            `,
+              { count: "exact" },
+            ).eq("shift_id", shiftData.id).eq("ats_unit_id", shiftData.ats_unit_id)
+              .order("id", { ascending: false }).limit(200);
+            if (before !== null) query = query.lt("id", before);
+            const { data, error, count } = await query.returns<RawEntryRow[]>();
+            if (!active || error || !data) throw error ?? new Error("Ocorrências indisponíveis");
+            return { rows: data, remaining: count };
+          }),
+          readCompleteReportRows<PositionLogRow>(async (before) => {
+            let query = supabase.from("shift_position_logs")
+              .select("id, user_id, entered_at_utc, left_at_utc, notes", { count: "exact" })
+              .eq("shift_id", shiftData.id).eq("ats_unit_id", shiftData.ats_unit_id).order("id", { ascending: false }).limit(200);
+            if (before !== null) query = query.lt("id", before);
+            const { data, error, count } = await query.returns<PositionLogRow[]>();
+            if (!active || error || !data) throw error ?? new Error("Logs de posição indisponíveis");
+            return { rows: data, remaining: count };
+          }),
+        ]);
+        if (!active) return;
+        loadedEntries = rawEntries.map(normalizeEntryRow)
+          .sort((a, b) => Date.parse(a.occurrence_at_utc) - Date.parse(b.occurrence_at_utc) || a.id - b.id);
+        loadedPositionLogs = logs.sort(
+          (a, b) => Date.parse(a.entered_at_utc) - Date.parse(b.entered_at_utc) || a.id - b.id,
+        );
+        setEntries(loadedEntries);
+        setPositionLogs(loadedPositionLogs);
+      } catch {
+        if (!active) return;
+        setMessage("Não foi possível confirmar todas as ocorrências ou os logs de posição. Volte a carregar o registo.");
         setLoading(false);
         return;
       }
-
-      const loadedEntries = ((entriesData as RawEntryRow[] | null) ?? []).map(
-        normalizeEntryRow,
-      );
-      setEntries(loadedEntries);
-
-      const { data: positionLogsData, error: positionLogsError } = await supabase
-        .from("shift_position_logs")
-        .select("id, user_id, entered_at_utc, left_at_utc, notes")
-        .eq("shift_id", Number(shiftId))
-        .order("entered_at_utc", { ascending: true });
-
-      if (!active) return;
-
-      if (positionLogsError) {
-        setMessage(`Erro ao carregar logs operacionais: ${positionLogsError.message}`);
-        setLoading(false);
-        return;
-      }
-
-      const loadedPositionLogs = (positionLogsData as PositionLogRow[]) || [];
-      setPositionLogs(loadedPositionLogs);
 
       const authorIds = Array.from(
         new Set(
@@ -433,48 +454,44 @@ export default function ShiftRecordDetailPage() {
         ),
       );
 
-      if (authorIds.length > 0) {
-        const { data: profilesData, error: profilesError } = await supabase
+      const mapped: Record<string, string> = {};
+      const names: Record<string, string> = {};
+      // A small batch keeps the filter URL below request limits on long reports.
+      for (let index = 0; index < authorIds.length; index += 100) {
+        const { data, error } = await supabase
           .from("profiles")
           .select("id, full_name, email")
-          .in("id", authorIds);
+          .in("id", authorIds.slice(index, index + 100));
 
         if (!active) return;
-
-        if (!profilesError && profilesData) {
-          const mapped = (profilesData as AuthorProfile[]).reduce<
-            Record<string, string>
-          >((acc, profile) => {
-            acc[profile.id] = profile.full_name || profile.email;
-            return acc;
-          }, {});
-          setAuthorsMap(mapped);
-          setOpenedByName(
-            shiftData.opened_by ? mapped[shiftData.opened_by] || "—" : "—",
-          );
-          setValidatedByName(
-            shiftData.validated_by ? mapped[shiftData.validated_by] || "—" : "—",
-          );
-        } else {
-          setAuthorsMap({});
-          setOpenedByName("—");
-          setValidatedByName("—");
+        if (error || !data) {
+          setMessage("Não foi possível consultar a identificação associada ao registo. Volte a carregar.");
+          setLoading(false);
+          return;
         }
-      } else {
-        setAuthorsMap({});
-        setOpenedByName("—");
-        setValidatedByName("—");
+        for (const person of data as AuthorProfile[]) {
+          if (person.full_name?.trim()) names[person.id] = person.full_name.trim();
+          mapped[person.id] = names[person.id] || person.email;
+        }
       }
-
+      setAuthorsMap(mapped);
+      setPersonNames(names);
+      setOpenedByName(shiftData.opened_by ? mapped[shiftData.opened_by] || "—" : "—");
+      setValidatedByName(shiftData.validated_by ? names[shiftData.validated_by] || null : null);
+      setLoadedReportShiftId(shiftData.id);
       setLoading(false);
     };
 
-    void initPage();
+    void initPage().catch(() => {
+      if (!active) return;
+      setMessage("Não foi possível confirmar todas as fontes do registo. Volte a carregar.");
+      setLoading(false);
+    });
 
     return () => {
       active = false;
     };
-  }, [shiftId]);
+  }, [shiftId, reloadReport]);
 
   const extractComposition = (openingNotes: string | null) => {
     if (!openingNotes) {
@@ -600,7 +617,13 @@ export default function ShiftRecordDetailPage() {
     return authorsMap[createdBy] || "Utilizador do sistema";
   };
 
-  const canValidateShift =
+  const reportReady = isShiftReportReady({
+    isLoading: loading, loadedShiftId: loadedReportShiftId, requestedShiftId: Number(shiftId), hasShift: !!shift,
+  });
+  const canIncludePositionLogs = reportReady && !!currentProfile?.ats_unit_id &&
+    currentProfile.ats_unit_id === shift?.ats_unit_id;
+  const validation = getRecordedValidation(shift?.validated_at_utc ?? null, validatedByName);
+  const canValidateShift = reportReady &&
     !!shift &&
     shift.status === "OPEN" &&
     entries.length > 0 &&
@@ -610,7 +633,7 @@ export default function ShiftRecordDetailPage() {
     shift.opened_by === currentProfile.id;
 
   const handleValidateShift = async () => {
-    if (!shift) {
+    if (!reportReady || !shift) {
       setMessage("Registo ATS não carregado.");
       return;
     }
@@ -644,7 +667,7 @@ export default function ShiftRecordDetailPage() {
   };
 
   const confirmValidateShift = async () => {
-    if (!shift || !currentProfile || !confirmValidate || validating) return;
+    if (!reportReady || !shift || !currentProfile || !confirmValidate || validating) return;
 
     setValidating(true);
     setMessage("");
@@ -680,18 +703,13 @@ export default function ShiftRecordDetailPage() {
       validated_by: validatedShift.validated_by,
       validated_at_utc: validatedShift.validated_at_utc,
     });
-    setValidatedByName(currentProfile.full_name || openedByName);
+    setValidatedByName(currentProfile.full_name || null);
     setConfirmValidate(false);
     setValidating(false);
   };
 
-  const csvEscape = (value: unknown) => {
-    const str = String(value ?? "");
-    return `"${str.replace(/"/g, '""')}"`;
-  };
-
   const handleExportCsv = () => {
-    if (!shift) return;
+    if (!reportReady || !shift) return;
 
     const header = [
       "shift_code",
@@ -743,16 +761,13 @@ export default function ShiftRecordDetailPage() {
       entry.documentary_reference ?? "",
     ]);
 
-    const csvContent = [
-      header.map(csvEscape).join(","),
-      ...rows.map((row) => row.map(csvEscape).join(",")),
-    ].join("\n");
+    const csvContent = buildShiftReportCsv(header, rows);
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `${shift.shift_code}.csv`;
+    link.download = shiftReportCsvName(shift.shift_code);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -760,11 +775,11 @@ export default function ShiftRecordDetailPage() {
   };
 
   const handlePrint = () => {
-    window.print();
+    if (reportReady) window.print();
   };
 
   const handleExportPdf = () => {
-    if (!shift) return;
+    if (!reportReady || !shift) return;
 
     exportShiftReportPdf({
       shift,
@@ -776,6 +791,13 @@ export default function ShiftRecordDetailPage() {
       equipmentSummary,
       occurrenceLevelSummary,
       pendingFollowupCount,
+      validation,
+      positionLogs: canIncludePositionLogs && includePositionLogs ? positionLogs.map((log) => ({
+        name: personNames[log.user_id] ?? null,
+        enteredAt: log.entered_at_utc,
+        leftAt: log.left_at_utc,
+        notes: log.notes,
+      })) : undefined,
     });
   };
 
@@ -798,6 +820,8 @@ export default function ShiftRecordDetailPage() {
           <div className="mb-4 text-sm text-red-700">
             {message || "Registo ATS não encontrado."}
           </div>
+          <button type="button" className={appButtonClass("secondary", "sm") + " mr-2"}
+            onClick={() => setReloadReport((value) => value + 1)}>Tentar novamente</button>
           <Link
             href="/occurrences"
             className={appButtonClass("secondary", "sm")}
@@ -855,6 +879,7 @@ export default function ShiftRecordDetailPage() {
           <button
             type="button"
             onClick={handleExportCsv}
+            disabled={!reportReady}
             className={`${topActionButtonClass} gap-2`}
           >
             <CsvIcon />
@@ -864,6 +889,7 @@ export default function ShiftRecordDetailPage() {
           <button
             type="button"
             onClick={handleExportPdf}
+            disabled={!reportReady}
             className={`${topActionButtonClass} gap-2`}
           >
             <PdfIcon />
@@ -873,12 +899,34 @@ export default function ShiftRecordDetailPage() {
           <button
             type="button"
             onClick={handlePrint}
+            disabled={!reportReady}
             className={`${topActionButtonClass} gap-2`}
           >
             <PrintIcon />
-            Imprimir
+            Imprimir vista
           </button>
         </div>
+
+        <div className="no-print mb-5 space-y-2 text-sm text-slate-600">
+          <p><strong>PDF e CSV:</strong> {FULL_REPORT_SCOPE} O CSV contém apenas as ocorrências, sem logs de posição.</p>
+          <p>{PRINT_REPORT_SCOPE}</p>
+          {reportReady && entries.length === 0 && <p>Não há ocorrências neste turno. O CSV terá apenas o cabeçalho.</p>}
+          {canIncludePositionLogs && (
+            <label className="flex items-center gap-2">
+              <input type="checkbox" className={appCheckboxClass()} checked={includePositionLogs}
+                onChange={(event) => setIncludePositionLogs(event.target.checked)} />
+              Incluir logs de posição no PDF
+            </label>
+          )}
+          {!reportReady && (
+            <div role="status" className="flex flex-wrap items-center gap-2 text-amber-800">
+              <span>Exportação e impressão indisponíveis enquanto o registo não estiver completo.</span>
+              <button type="button" className={appButtonClass("secondary", "sm")}
+                onClick={() => setReloadReport((value) => value + 1)}>Tentar novamente</button>
+            </div>
+          )}
+        </div>
+        {!reportReady && <p className="report-print-warning">Impressão indisponível: as fontes do registo não foram todas confirmadas.</p>}
 
         {successMessage && (
           <div className="no-print mb-4 rounded-[0.9rem] border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-700">
@@ -888,7 +936,8 @@ export default function ShiftRecordDetailPage() {
 
         {message && <div className="no-print mb-4 text-sm text-red-700">{message}</div>}
 
-        <article className="print-area space-y-6">
+        <article className={reportReady ? "print-area space-y-6" : "print-area space-y-6 no-print"}>
+          <p className="report-print-warning">{PRINT_REPORT_SCOPE}</p>
           <ReportSection title="Identificação do turno">
             <div className="grid gap-3">
               <div className="grid gap-3 md:grid-cols-3">
@@ -1231,25 +1280,18 @@ export default function ShiftRecordDetailPage() {
 
           <section className="rounded-[1.45rem] border border-slate-200 bg-white/95 p-5 shadow-[0_18px_36px_-30px_rgba(15,23,42,0.18)]">
             <h2 className="mb-5 text-sm font-bold uppercase tracking-wide text-slate-800">
-              Validação
+              Validação registada no sistema
             </h2>
-
-            <div className="grid gap-12 md:grid-cols-2">
-              <div>
-                <div className="flex h-10 items-end border-b border-slate-400 pb-1 text-sm font-medium text-slate-900">
-                  {shift.validated_at_utc ? validatedByName : "—"}
-                </div>
-                <div className="mt-2 text-sm text-slate-700">
-                  Supervisor / responsável
-                </div>
-              </div>
-              <div>
-                <div className="flex h-10 items-end border-b border-slate-400 pb-1 text-sm font-medium text-slate-900">
-                  {shift.validated_at_utc
-                    ? formatUtcDateTime(shift.validated_at_utc)
-                    : "—"}
-                </div>
-                <div className="mt-2 text-sm text-slate-700">Data</div>
+            <dl className="grid gap-3 md:grid-cols-3">
+              <div><dt className="text-sm text-slate-700">Estado</dt><dd className="font-medium">{validation.recorded ? "Validação registada" : "Sem validação registada"}</dd></div>
+              <div><dt className="text-sm text-slate-700">Validado por</dt><dd className="font-medium">{validation.by}</dd></div>
+              <div><dt className="text-sm text-slate-700">Data/hora da validação</dt><dd className="font-medium">{validation.atUtc}</dd></div>
+            </dl>
+            <div className="mt-6 border-t border-slate-200 pt-4">
+              <p className="text-sm font-semibold text-slate-800">Assinatura manuscrita (se aplicável)</p>
+              <div className="grid gap-8 md:grid-cols-2">
+                <div><div className="h-9 border-b border-slate-400" /><div className="mt-2 text-sm text-slate-700">Assinatura do responsável</div></div>
+                <div><div className="h-9 border-b border-slate-400" /><div className="mt-2 text-sm text-slate-700">Data da assinatura</div></div>
               </div>
             </div>
 
@@ -1313,7 +1355,9 @@ export default function ShiftRecordDetailPage() {
                 </>
               ) : (
                 <div className="text-sm text-slate-600">
-                  {shift.validated_at_utc
+                  {!reportReady
+                    ? "Não foi possível confirmar as condições de validação."
+                    : shift.validated_at_utc
                     ? "Registo ATS validado."
                     : entries.length === 0
                     ? "Sem ocorrências ATS para validar neste turno."

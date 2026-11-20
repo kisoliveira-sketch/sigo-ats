@@ -931,3 +931,8 @@ input[type="checkbox"] {
         margin-bottom: 0.75rem !important;
     }
 }
+
+.report-print-warning { display: none; }
+@media print {
+  .report-print-warning { display: block; margin-bottom: 12px; font-size: 10pt; }
+}

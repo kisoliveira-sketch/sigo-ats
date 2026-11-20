@@ -36,6 +36,7 @@ test("long shift notes and both copies of an occurrence stay on-page", () => {
       equipmentSummary: "—",
       occurrenceLevelSummary: "Normal",
       pendingFollowupCount: 0,
+      validation: { recorded: true, by: "VALIDATORCONFIRMED", atUtc: "2026-11-19 14:15:23 UTC" },
       entries: [{
         occurrence_number: "TEST-1",
         severity: "Normal",
@@ -71,7 +72,14 @@ test("long shift notes and both copies of an occurrence stay on-page", () => {
     assert.equal(lines.split(noteMarker).length - 1, 1);
     assert.equal(lines.split(descriptionMarker).length - 1, 2);
     assert.match(lines, /Resultado \/ consequência:[ \t]+AFTERLONGFIELD/);
-    assert.match(lines, /9\. VALIDAÇÃO/);
+    assert.match(lines, /9\. VALIDAÇÃO REGISTADA NO SISTEMA/);
+    assert.match(lines, /Validação registada/);
+    assert.match(lines, /Validado por:[ \t]+VALIDATORCONFIRMED/);
+    assert.match(lines, /2026-11-19 14:15:23 UTC/);
+    assert.match(lines, /ASSINATURA MANUSCRITA \(SE APLICÁVEL\)/);
+    assert.match(lines, /Não aplica a pesquisa do ecrã/);
+    assert.match(lines, /Não incluídos neste PDF/);
+    assert.doesNotMatch(lines, /ANEXO. LOGS/);
     pages.forEach((page, i) => {
       assert.ok(page.includes("RELATÓRIO ATS"), "each page has a header");
       assert.ok(page.includes("Página " + (i + 1) + " de " + pages.length), "each page has its number");
@@ -84,6 +92,47 @@ test("long shift notes and both copies of an occurrence stay on-page", () => {
     for (const [, yMax, word] of bodyWords) {
       assert.ok(Number(yMax) <= bodyLimitPoints + 2, word + " must not enter the footer margin");
     }
+  } finally {
+    process.chdir(previousDirectory);
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+
+test("empty report, optional position logs and long notes remain truthful in the PDF", () => {
+  const directory = mkdtempSync(path.join(tmpdir(), "sigo-report-logs-"));
+  const previousDirectory = process.cwd();
+  const lastNote = "FINAL-NOTE-MARKER";
+  try {
+    process.chdir(directory);
+    const report = {
+      shift: { shift_code: "TEST-LOGS", operational_date: "2026-11-19", status: "OPEN",
+        start_time_utc: null, end_time_utc: null, opening_notes: null, handover_notes: null },
+      supervisor: "Supervisor Example", entries: [], composition: "—", notes: "—",
+      weatherSummary: "—", equipmentSummary: "—", occurrenceLevelSummary: "—",
+      pendingFollowupCount: 0, validation: { recorded: false, by: "—", atUtc: "—" },
+    };
+    exportShiftReportPdf({ ...report, positionLogs: [] });
+    const empty = execFileSync("pdftotext", ["-layout", "TEST-LOGS.pdf", "-"], { encoding: "utf8" });
+    assert.match(empty, /Sem ocorrências registadas neste turno/);
+    assert.match(empty, /Sem logs de posição registados neste turno/);
+    assert.match(empty, /Sem validação registada/);
+    assert.doesNotMatch(empty, /Validado por:/);
+
+    exportShiftReportPdf({ ...report, positionLogs: [{
+      name: "CTA-TESTE", enteredAt: "2026-11-19T23:58:00Z", leftAt: null,
+      notes: [...Array.from({ length: 180 }, (_, i) => "LOGNOTE" + String(i).padStart(3, "0")), lastNote].join("\n"),
+    }] });
+    const lines = execFileSync("pdftotext", ["-layout", "TEST-LOGS.pdf", "-"], { encoding: "utf8" });
+    assert.match(lines, /ANEXO. LOGS OPERACIONAIS DA POSIÇÃO/);
+    assert.match(lines, /CTA-TESTE/);
+    assert.match(lines, /2026-11-19 23:58 UTC/);
+    assert.match(lines, /Ainda sem saída registada/);
+    for (let i = 0; i < 180; i++) {
+      const tag = "LOGNOTE" + String(i).padStart(3, "0");
+      assert.equal(lines.split(tag).length - 1, 1);
+    }
+    assert.equal(lines.split(lastNote).length - 1, 1);
   } finally {
     process.chdir(previousDirectory);
     rmSync(directory, { recursive: true, force: true });
