@@ -20,13 +20,16 @@ declare
                         or new.validated_by is distinct from old.validated_by;
 begin
   -- Preserve genuine nested FK SET NULL, not direct authority rewrites.
+  -- The existing BEFORE UPDATE timestamp trigger has already fired.
   if pg_catalog.pg_trigger_depth() > 1 and (
     (old.validated_by is not null and new.validated_by is null
-      and (pg_catalog.to_jsonb(new) - 'validated_by') = (pg_catalog.to_jsonb(old) - 'validated_by')
+      and (pg_catalog.to_jsonb(new) - array['validated_by','updated_at'])
+          = (pg_catalog.to_jsonb(old) - array['validated_by','updated_at'])
       and not exists (select 1 from public.profiles where id = old.validated_by))
     or
     (old.opened_by is not null and new.opened_by is null
-      and (pg_catalog.to_jsonb(new) - 'opened_by') = (pg_catalog.to_jsonb(old) - 'opened_by')
+      and (pg_catalog.to_jsonb(new) - array['opened_by','updated_at'])
+          = (pg_catalog.to_jsonb(old) - array['opened_by','updated_at'])
       and not exists (select 1 from public.profiles where id = old.opened_by))
   ) then return new; end if;
 

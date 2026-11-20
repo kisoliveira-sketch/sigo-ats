@@ -127,8 +127,16 @@ try {
   await expect(monitor,position(211,11),'P7501');
   await expect(monitor,'delete from shifts where id=4'); // existing child FK cascade
   await expect(monitor,'reset role');
+  await expect(a,'update shifts set validated_by=null where id=11','P7502');
+  await expect(a,'update shifts set opened_by=null where id=11','P7501');
+  const history = "select row(status,validated_at_utc,end_time_utc,handover_notes)::text from shifts where id=11";
+  const savedHistory = (await expect(monitor,history)).data;
+  const savedTimestamp = (await expect(monitor,'select updated_at::text from shifts where id=11')).data;
   await expect(monitor,'delete from profiles where id='+who(1)); // validated_by/opened_by FK SET NULL
   await expect(monitor,'select count(*) from shifts where validated_at_utc is not null and validated_by is null','00000','2');
+  await expect(monitor,history,'00000',savedHistory);
+  await expect(monitor,'select (opened_by is null and validated_by is null)::int from shifts where id=11','00000','1');
+  assert.notEqual((await expect(monitor,'select updated_at::text from shifts where id=11')).data,savedTimestamp);
   assert(assertions >= 80);
   console.log('NATIVE_LIFECYCLE_QA_PASS',assertions,'checks, distinct PostgreSQL backend PIDs',pidA,pidB);
 } finally {

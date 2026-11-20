@@ -12,8 +12,15 @@ create table public.shifts (
   opened_by uuid references public.profiles on delete set null,
   validated_by uuid references public.profiles on delete set null,
   validated_at_utc timestamptz, status text not null default 'OPEN',
-  end_time_utc timestamptz, handover_notes text, opening_notes text
+  end_time_utc timestamptz, handover_notes text, opening_notes text,
+  updated_at timestamptz not null default now()
 );
+-- Match the existing production shift timestamp trigger and its firing order.
+create function public.sigo_fixture_set_updated_at() returns trigger language plpgsql as $$
+begin new.updated_at := now(); return new; end;
+$$;
+create trigger trg_shifts_updated_at before update on public.shifts
+  for each row execute function public.sigo_fixture_set_updated_at();
 create table public.occurrences (
   id bigint primary key, shift_id bigint not null references public.shifts on delete cascade,
   ats_unit_id bigint not null, created_by uuid references public.profiles on delete set null, note text
