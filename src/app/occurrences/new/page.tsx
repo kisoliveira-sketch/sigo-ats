@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getFriendlyErrorMessage } from "@/lib/friendly-errors";
 import { supabase } from "@/lib/supabase";
+import { useShiftAuthority } from "@/lib/shift-authority";
 import {
   AlertIcon,
   appButtonClass,
@@ -74,37 +75,6 @@ function getProfileDisplayName(profile: Profile | null) {
 
   const fullName = profile.full_name?.trim();
   return fullName || "—";
-}
-
-function extractCompositionLines(openingNotes: string | null) {
-  if (!openingNotes) return [];
-
-  const marker = "Composição do turno:";
-  const idx = openingNotes.indexOf(marker);
-
-  if (idx === -1) return [];
-
-  return openingNotes
-    .slice(idx + marker.length)
-    .trim()
-    .split("|")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function isUserInShiftComposition(openingNotes: string | null, profile: Profile | null) {
-  if (!profile) return false;
-
-  const lines = extractCompositionLines(openingNotes);
-  if (lines.length === 0) return false;
-
-  const fullName = profile.full_name?.trim().toLowerCase();
-  const email = profile.email.trim().toLowerCase();
-
-  return lines.some((line) => {
-    const member = line.split(":").slice(1).join(":").trim().toLowerCase();
-    return (fullName && member === fullName) || member === email;
-  });
 }
 
 export default function NewOccurrencePage() {
@@ -276,8 +246,13 @@ export default function NewOccurrencePage() {
   }, []);
 
   const inputClass = appFieldClass();
-  const canCreateOccurrence =
-    !!openShift && !!profile && isUserInShiftComposition(openShift.opening_notes, profile);
+  const { authority, pending: authorityPending } = useShiftAuthority(openShift?.id, profile?.id);
+  const canCreateOccurrence = authority ? authority.memberRole !== null : false;
+  const compositionMessage = authorityPending
+    ? "A verificar a composição do turno…"
+    : !authority
+      ? "Não foi possível verificar as permissões da composição. Atualiza a página antes de continuar."
+      : "Só os membros da composição do turno podem criar ocorrências.";
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -295,7 +270,7 @@ export default function NewOccurrencePage() {
     }
 
     if (!canCreateOccurrence) {
-      setMessage("Só os CTA que fazem parte da composição do turno podem registar novas entradas.");
+      setMessage(compositionMessage);
       setMessageType("error");
       return;
     }
@@ -474,7 +449,7 @@ export default function NewOccurrencePage() {
             </SoftIcon>
           }
           title="Registo restrito"
-          subtitle="Só os CTA que fazem parte da composição do turno podem registar novas entradas ATS."
+          subtitle={compositionMessage}
         >
           <div className="flex flex-wrap gap-3">
             <Link href="/occurrences" className={heroActionClass()}>

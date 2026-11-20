@@ -4,11 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getFriendlyErrorMessage } from "@/lib/friendly-errors";
 import { supabase } from "@/lib/supabase";
-import {
-  canManagePositionLogs as canManageLogs,
-  getPositionLogAuthority,
-  isUnitWithoutSupervision,
-} from "@/lib/position-log-authority";
+import { useShiftAuthority } from "@/lib/shift-authority";
 import {
   AlertIcon,
   appButtonClass,
@@ -75,27 +71,8 @@ function formatUtcDateTime(value: string | null) {
   return `${year}-${month}-${day} ${hours}:${minutes} UTC`;
 }
 
-function extractCompositionLabels(openingNotes: string | null) {
-  if (!openingNotes) return [];
-
-  const marker = "Composição do turno:";
-  const idx = openingNotes.indexOf(marker);
-
-  if (idx === -1) return [];
-
-  return openingNotes
-    .slice(idx + marker.length)
-    .trim()
-    .split("|")
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .map((item) => item.split(":").slice(1).join(":").trim())
-    .filter(Boolean);
-}
-
 export default function ShiftLogsPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [unitCode, setUnitCode] = useState<string | null>(null);
   const [openShift, setOpenShift] = useState<OpenShift | null>(null);
   const [unitUsers, setUnitUsers] = useState<UnitUser[]>([]);
   const [logs, setLogs] = useState<PositionLog[]>([]);
@@ -158,7 +135,6 @@ export default function ShiftLogsPage() {
       const [
         { data: openShiftData, error: openShiftError },
         { data: unitUsersData, error: unitUsersError },
-        { data: unitData },
       ] = await Promise.all([
         supabase
           .from("shifts")
@@ -173,11 +149,6 @@ export default function ShiftLogsPage() {
           .select("id, full_name, email")
           .eq("ats_unit_id", profileData.ats_unit_id)
           .order("full_name", { ascending: true }),
-        supabase
-          .from("ats_units")
-          .select("code")
-          .eq("id", profileData.ats_unit_id)
-          .maybeSingle(),
       ]);
 
       if (!active) return;
@@ -206,7 +177,6 @@ export default function ShiftLogsPage() {
         return;
       }
 
-      setUnitCode(unitData?.code ?? null);
       setOpenShift((openShiftData as OpenShift | null) ?? null);
       const users = (unitUsersData as UnitUser[]) ?? [];
       setUnitUsers(users);
@@ -261,30 +231,21 @@ export default function ShiftLogsPage() {
     [unitUsers],
   );
 
-  const eligibleUsers = useMemo(() => {
-    const labels = extractCompositionLabels(openShift?.opening_notes ?? null);
-
-    if (labels.length === 0) {
-      return unitUsers;
-    }
-
-    const allowed = new Set(labels.map((item) => item.toLowerCase()));
-
-    return unitUsers.filter((item) => {
-      const fullName = item.full_name?.trim().toLowerCase();
-      const email = item.email.trim().toLowerCase();
-      return (fullName && allowed.has(fullName)) || allowed.has(email);
-    });
-  }, [openShift?.opening_notes, unitUsers]);
-
-  const positionLogAuthority = getPositionLogAuthority(openShift, unitCode);
-  const canManagePositionLogs = canManageLogs(positionLogAuthority, profile);
-  const positionLogPermissionMessage =
-    positionLogAuthority.kind === "opener"
-      ? "Só quem abriu o turno pode registar entradas e saídas da posição nesta unidade."
-      : positionLogAuthority.kind === "none" && isUnitWithoutSupervision(unitCode)
-        ? "Não foi possível identificar quem abriu o turno para gerir os logs."
-        : "Só o supervisor identificado no turno pode registar entradas e saídas da posição.";
+  const { authority, pending } = useShiftAuthority(openShift?.id, profile?.id);
+  const eligibleUsers = useMemo(
+    () => unitUsers.filter((user) => authority?.memberIds.includes(user.id)),
+    [authority, unitUsers],
+  );
+  const canManagePositionLogs = authority?.canManagePositions === true;
+  const positionLogPermissionMessage = pending
+    ? "A verificar as permissões da composição do turno…"
+    : !authority
+      ? "Não foi possível verificar as permissões da composição. Atualiza a página antes de continuar."
+      : authority.managerKind === "opener"
+        ? "Só quem abriu o turno pode registar entradas e saídas da posição nesta unidade."
+        : authority.managerKind === "supervisor"
+          ? "Só o supervisor identificado no turno pode registar entradas e saídas da posição."
+          : "Não existe responsável identificado para gerir os registos de posição.";
 
   const activeLogs = useMemo(
     () => logs.filter((item) => !item.left_at_utc),

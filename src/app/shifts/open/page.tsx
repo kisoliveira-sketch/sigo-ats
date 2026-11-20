@@ -363,7 +363,7 @@ export default function OpenShiftPage() {
 
     const startIso = new Date(`${operationalDate}T${startTime}:00Z`).toISOString();
     const { data: shiftId, error: shiftError } = await supabase.rpc(
-      "sigo_open_shift_with_staff_v1",
+      "sigo_open_shift_with_staff_v2",
       {
         p_shift_code: generatedShiftCode,
         p_operational_date: operationalDate,
@@ -393,6 +393,7 @@ export default function OpenShiftPage() {
         case "sigo_open_invalid_shift":
           issue = "Não foi possível confirmar a referência, a data ou a hora de início do turno.";
           break;
+        case "sigo_permissions_refresh_open":
         case "sigo_open_retry":
           issue = "Não foi possível confirmar o estado da unidade. Atualiza a página e tenta novamente.";
           break;

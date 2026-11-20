@@ -6,10 +6,7 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getFriendlyErrorMessage } from "@/lib/friendly-errors";
 import { supabase } from "@/lib/supabase";
-import {
-  canManagePositionLogs as canManageLogs,
-  getPositionLogAuthority,
-} from "@/lib/position-log-authority";
+import { useShiftAuthority } from "@/lib/shift-authority";
 import {
   AppFooter,
   FileIcon,
@@ -140,48 +137,6 @@ function extractCompositionLines(openingNotes?: string | null) {
     .split("|")
     .map((item) => item.trim())
     .filter(Boolean);
-}
-
-function extractUserShiftRole(
-  openingNotes: string | null | undefined,
-  profile?: { full_name?: string | null; email?: string | null } | null,
-) {
-  if (!profile) return null;
-
-  const lines = extractCompositionLines(openingNotes);
-  if (lines.length === 0) return null;
-
-  const fullName = profile.full_name?.trim().toLowerCase();
-  const email = profile.email?.trim().toLowerCase();
-
-  for (const line of lines) {
-    const [rolePart, ...memberParts] = line.split(":");
-    const member = memberParts.join(":").trim().toLowerCase();
-
-    if ((fullName && member === fullName) || (email && member === email)) {
-      return rolePart.trim() || null;
-    }
-  }
-
-  return null;
-}
-
-function isUserInShiftComposition(
-  openingNotes: string | null | undefined,
-  profile?: { full_name?: string | null; email?: string | null } | null,
-) {
-  if (!profile) return false;
-
-  const lines = extractCompositionLines(openingNotes);
-  if (lines.length === 0) return false;
-
-  const fullName = profile.full_name?.trim().toLowerCase();
-  const email = profile.email?.trim().toLowerCase();
-
-  return lines.some((line) => {
-    const member = line.split(":").slice(1).join(":").trim().toLowerCase();
-    return (fullName && member === fullName) || (email && member === email);
-  });
 }
 
 const dashboardLineIconClass =
@@ -980,8 +935,8 @@ export default function Home() {
   const hasOpenShift = !!openShift;
   const canCloseCurrentShift =
     !!openShift && !!profile && openShift.opened_by === profile.id;
-  const canCreateOccurrence =
-    !!openShift && !!profile && isUserInShiftComposition(openShift.opening_notes, profile);
+  const { authority: shiftAuthority, pending: authorityPending } = useShiftAuthority(openShift?.id, profile?.id);
+  const canCreateOccurrence = shiftAuthority?.canCreateOccurrence === true;
   const isOpenShiftValidated = !!openShift?.validated_at_utc;
   const requiresValidationForClose = hasOpenShift && activeOccurrencesCount > 0;
   const operationalStatus = hasOpenShift ? "Turno aberto" : "Sem turno aberto";
@@ -1026,18 +981,14 @@ export default function Home() {
     () => extractCompositionLines(openShift?.opening_notes),
     [openShift?.opening_notes],
   );
-  const positionLogAuthority = getPositionLogAuthority(openShift, atsUnit?.code);
-  const positionLogResponsible =
-    positionLogAuthority.kind === "supervisor"
-      ? positionLogAuthority.label
-      : positionLogAuthority.kind === "opener"
-        ? openShiftOpenedByName
-        : "—";
-  const currentUserShiftRole = extractUserShiftRole(openShift?.opening_notes, profile);
+  const positionLogAuthority = { kind: shiftAuthority?.managerKind ?? "none" };
+  const positionLogResponsible = shiftAuthority?.managerLabel ||
+    (positionLogAuthority.kind === "opener" ? openShiftOpenedByName : "—");
+  const currentUserShiftRole = shiftAuthority?.memberRole;
   const profileCardLabel = hasOpenShift && currentUserShiftRole ? "Função no turno" : "Perfil";
   const profileCardValue = currentUserShiftRole || profile?.role || "—";
   const canAccessAdmin = (profile?.role ?? "") === "ADMIN";
-  const canManagePositionLogs = canManageLogs(positionLogAuthority, profile);
+  const canManagePositionLogs = shiftAuthority?.canManagePositions === true;
   const hasAnyPositionLogs = positionLogsCount > 0;
   const hasActivePositionLogs = activePositionLogs.length > 0;
   const activePositionStatus = !hasOpenShift
@@ -1093,7 +1044,11 @@ export default function Home() {
         ? "Aguardar que quem abriu o turno registe a primeira entrada na posição operacional."
         : positionLogAuthority.kind === "supervisor"
           ? "Aguardar o supervisor para registar a entrada inicial na posição operacional."
-          : "Não existe responsável identificado para registar a entrada na posição operacional."
+          : authorityPending
+            ? "A verificar a composição do turno…"
+            : !shiftAuthority
+              ? "Não foi possível verificar as permissões da composição do turno."
+              : "Não existe responsável identificado para registar a entrada na posição operacional."
     : hasActivePositionLogs
     ? canCreateOccurrence
       ? "Com a posição operacional ativa, já pode registar entradas de ocorrência no turno."
