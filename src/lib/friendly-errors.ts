@@ -8,6 +8,23 @@ export function getFriendlyErrorMessage(
 ) {
   const normalized = normalizeErrorMessage(message);
 
+  switch (normalized) {
+    case "sigo_lifecycle_denied":
+      return "Não tens permissão para esta ação neste turno.";
+    case "sigo_lifecycle_state_changed":
+      return "O estado do turno mudou. Atualiza a página antes de continuar.";
+    case "sigo_lifecycle_active_positions":
+      return "Ainda existem posições operacionais ativas. Regista as saídas antes de continuar.";
+    case "sigo_lifecycle_needs_validation":
+      return "O registo ATS deve ser validado antes do encerramento do turno.";
+    case "sigo_lifecycle_no_occurrences":
+      return "Este turno não tem ocorrências ATS para validar.";
+    case "sigo_lifecycle_occurrences_validated":
+      return "O registo ATS já foi validado. As ocorrências deste turno não podem ser alteradas.";
+    case "sigo_lifecycle_retry":
+      return "Não foi possível confirmar o estado atual do turno. Atualiza a página e tenta novamente.";
+  }
+
   if (!normalized) {
     return `${context}. Tenta novamente.`;
   }

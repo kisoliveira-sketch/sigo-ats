@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { getFriendlyErrorMessage } from "@/lib/friendly-errors";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -643,7 +644,7 @@ export default function ShiftRecordDetailPage() {
   };
 
   const confirmValidateShift = async () => {
-    if (!shift || !currentProfile || !confirmValidate) return;
+    if (!shift || !currentProfile || !confirmValidate || validating) return;
 
     setValidating(true);
     setMessage("");
@@ -651,24 +652,33 @@ export default function ShiftRecordDetailPage() {
 
     const validatedAtIso = getValidationTimestampIso();
 
-    const { error } = await supabase
+    const { data: validatedShift, error } = await supabase
       .from("shifts")
       .update({
         validated_by: currentProfile.id,
         validated_at_utc: validatedAtIso,
       })
-      .eq("id", shift.id);
+      .eq("id", shift.id)
+      .eq("status", "OPEN")
+      .is("validated_at_utc", null)
+      .select("id, validated_by, validated_at_utc")
+      .maybeSingle();
 
-    if (error) {
-      setMessage(`Não foi possível validar o registo ATS: ${error.message}`);
+    if (error || validatedShift?.validated_by !== currentProfile.id || !validatedShift.validated_at_utc) {
+      setMessage(
+        error
+          ? getFriendlyErrorMessage("Não foi possível validar o registo ATS", error.message)
+          : "O registo ATS não foi validado. Atualiza a página e verifica o estado atual.",
+      );
+      setConfirmValidate(false);
       setValidating(false);
       return;
     }
 
     setShift({
       ...shift,
-      validated_by: currentProfile.id,
-      validated_at_utc: validatedAtIso,
+      validated_by: validatedShift.validated_by,
+      validated_at_utc: validatedShift.validated_at_utc,
     });
     setValidatedByName(currentProfile.full_name || openedByName);
     setConfirmValidate(false);

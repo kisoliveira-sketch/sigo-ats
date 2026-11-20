@@ -311,6 +311,8 @@ export default function CloseShiftPage() {
       return;
     }
 
+    if (closing) return;
+
     if (!canUseVerification || verificationGeneration.current !== verificationAttempt) {
       setMessage("Não foi possível confirmar os requisitos de fecho. Tenta verificar novamente.");
       setMessageType("error");
@@ -349,20 +351,26 @@ export default function CloseShiftPage() {
 
     const endIso = getCurrentUtcIso();
 
-    const { error } = await supabase
+    const { data: closedShift, error } = await supabase
       .from("shifts")
       .update({
         status: "CLOSED",
         end_time_utc: endIso,
         handover_notes: handoverNotes.trim() || null,
       })
-      .eq("id", openShift.id);
+      .eq("id", openShift.id)
+      .eq("status", "OPEN")
+      .select("id, status, end_time_utc")
+      .maybeSingle();
 
-    if (error) {
+    if (error || closedShift?.status !== "CLOSED" || !closedShift.end_time_utc) {
       setMessage(
-        getFriendlyErrorMessage("Não foi possível encerrar o turno", error.message),
+        error
+          ? getFriendlyErrorMessage("Não foi possível encerrar o turno", error.message)
+          : "O turno não foi encerrado. Atualiza a página e verifica o estado atual.",
       );
       setMessageType("error");
+      setConfirmClose(false);
       setClosing(false);
       return;
     }
