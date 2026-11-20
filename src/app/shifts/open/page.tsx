@@ -351,53 +351,8 @@ export default function OpenShiftPage() {
     setMessage("");
     setMessageType("");
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      setMessage("Utilizador não autenticado.");
-      setMessageType("error");
-      setLoading(false);
-      return;
-    }
-
-    const { data: existingShift, error: existingShiftError } = await supabase
-      .from("shifts")
-      .select("id, shift_code, operational_date, status")
-      .eq("ats_unit_id", profile.ats_unit_id)
-      .eq("shift_code", generatedShiftCode)
-      .eq("operational_date", operationalDate)
-      .maybeSingle();
-
-    if (existingShiftError) {
-      setMessage(
-        getFriendlyErrorMessage(
-          "Não foi possível confirmar se este turno já existe",
-          existingShiftError.message,
-        ),
-      );
-      setMessageType("error");
-      setLoading(false);
-      return;
-    }
-
-    if (existingShift) {
-      setMessage(
-        `Já existe um turno ${existingShift.shift_code} para a data ${existingShift.operational_date}.`,
-      );
-      setMessageType("error");
-      setLoading(false);
-      return;
-    }
-
-    const profileLookup = new Map(unitUsers.map((item) => [item.id, item]));
-
-    const unresolvedMembers = validMembers.filter(
-      (member) => !profileLookup.has(member.user_id),
-    );
-
-    if (unresolvedMembers.length > 0) {
+    const unitUserIds = new Set(unitUsers.map((item) => item.id));
+    if (validMembers.some((member) => !unitUserIds.has(member.user_id))) {
       setMessage(
         "Há membros selecionados que já não estão disponíveis na unidade. Atualiza a composição do turno e tenta novamente.",
       );
@@ -406,83 +361,48 @@ export default function OpenShiftPage() {
       return;
     }
 
-    const startIso = new Date(
-      `${operationalDate}T${startTime}:00Z`,
-    ).toISOString();
+    const startIso = new Date(`${operationalDate}T${startTime}:00Z`).toISOString();
+    const { data: shiftId, error: shiftError } = await supabase.rpc(
+      "sigo_open_shift_with_staff_v1",
+      {
+        p_shift_code: generatedShiftCode,
+        p_operational_date: operationalDate,
+        p_start_time_utc: startIso,
+        p_opening_notes: openingNotes.trim() || null,
+        p_member_ids: validMembers.map((member) => member.user_id),
+        p_member_roles: validMembers.map((member) => member.role_in_shift),
+      },
+    );
 
-    const compositionText = validMembers
-      .map((member) => {
-        const selectedUser = profileLookup.get(member.user_id);
-        const memberLabel =
-          selectedUser?.full_name || selectedUser?.email || "Utilizador";
-        return `${member.role_in_shift}: ${memberLabel}`;
-      })
-      .join(" | ");
-
-    const notesWithComposition = [
-      openingNotes.trim() ? openingNotes.trim() : null,
-      compositionText ? `Composição do turno: ${compositionText}` : null,
-    ]
-      .filter(Boolean)
-      .join("\n\n");
-
-    const { data: shiftData, error: shiftError } = await supabase
-      .from("shifts")
-      .insert({
-        ats_unit_id: profile.ats_unit_id,
-        shift_code: generatedShiftCode,
-        operational_date: operationalDate,
-        start_time_utc: startIso,
-        status: "OPEN",
-        opening_notes: notesWithComposition || null,
-        opened_by: user.id,
-      })
-      .select("id")
-      .single();
-
-    if (shiftError || !shiftData) {
-      setMessage(
-        getFriendlyErrorMessage(
-          "Não foi possível abrir o turno",
-          shiftError?.message,
-        ),
-      );
-      setMessageType("error");
-      setLoading(false);
-      return;
-    }
-
-    const shiftId = shiftData.id;
-
-    const normalizedMembers = validMembers.map((member) => {
-      const matchedProfile = profileLookup.get(member.user_id);
-      const isSupervisor = member.role_in_shift === "Supervisor";
-      const memberLabel =
-        matchedProfile?.full_name || matchedProfile?.email || "Utilizador";
-
-      return {
-        shift_id: shiftId,
-        user_id: matchedProfile?.id ?? user.id,
-        role_in_shift: `${member.role_in_shift} · ${memberLabel}`,
-        is_present: true,
-        notes: isSupervisor
-          ? "Supervisor autenticado no momento de abertura do turno."
-          : "Membro registado na composição inicial do turno.",
-      };
-    });
-
-    const { error: staffError } = await supabase
-      .from("shift_staff")
-      .insert(normalizedMembers);
-
-    if (staffError) {
-      await supabase.from("shifts").delete().eq("id", shiftId);
-      setMessage(
-        getFriendlyErrorMessage(
-          "Não foi possível guardar a composição do turno",
-          staffError.message,
-        ),
-      );
+    if (shiftError || typeof shiftId !== "number" || !Number.isSafeInteger(shiftId) || shiftId <= 0) {
+      let issue: string;
+      switch (shiftError?.message) {
+        case "sigo_open_denied":
+          issue = "Não foi possível confirmar a tua conta ou o teu órgão ATS. Volta a entrar e tenta novamente.";
+          break;
+        case "sigo_open_existing_open":
+          issue = "Já existe um turno aberto na unidade. Atualiza a página para o consultar.";
+          break;
+        case "sigo_open_existing_reference":
+          issue = `Já existe um turno ${generatedShiftCode} para a data ${operationalDate}.`;
+          break;
+        case "sigo_open_invalid_staff":
+        case "sigo_open_unavailable_staff":
+          issue = "Não foi possível confirmar a composição. Revê os membros do turno e tenta novamente.";
+          break;
+        case "sigo_open_invalid_shift":
+          issue = "Não foi possível confirmar a referência, a data ou a hora de início do turno.";
+          break;
+        case "sigo_open_retry":
+          issue = "Não foi possível confirmar o estado da unidade. Atualiza a página e tenta novamente.";
+          break;
+        default:
+          issue = getFriendlyErrorMessage(
+            "Não foi possível guardar o turno e a equipa",
+            shiftError?.message,
+          );
+      }
+      setMessage(issue);
       setMessageType("error");
       setLoading(false);
       return;

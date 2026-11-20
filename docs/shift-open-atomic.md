@@ -1,0 +1,13 @@
+# Abertura atómica do turno e da equipa (ponto 3)
+
+A app chama uma única transação PostgreSQL. O RPC é SECURITY INVOKER: mantém os privilégios e RLS existentes, com execução apenas para authenticated. Identidade e órgão vêm do perfil autenticado, e nomes/funções seguem o formato anterior. Um erro ao gravar a equipa aborta também o turno; não há pedido posterior para compensar apagando o turno.
+
+A interface já bloqueia outro turno OPEN na unidade e uma referência repetida. O RPC revalida essas regras sob um bloqueio transacional por unidade, apenas para chamadas a este RPC. Não cria índice nem nova regra global. Durante a coexistência de versões, separadores antigos e outros escritores diretos não participam no bloqueio; a aplicação antiga também não ganha atomicidade retroativamente. Um bloqueio global exigiria decisão e pré-verificação próprias.
+
+## Antes de publicar
+1. Em leitura e com âmbito autorizado, rever `supabase/preflight-open-shift-with-staff-v1.sql`. Confirmar colunas, tipos, defaults, permissões e políticas efetivas: autenticados devem poder ler a sua unidade, o próprio perfil, perfis selecionáveis e todos os possíveis turnos OPEN/com a mesma referência na unidade; inserir o turno e a respetiva equipa; obter shifts.id. Confirmar nomes/colunas da sequência e isolamento READ COMMITTED no caminho PostgREST, e a visibilidade da função no schema cache. Não substituir RLS por permissões elevadas para forçar compatibilidade. Confirmar coexistência com o ponto 2, outras regras de integridade e o projeto de destino.
+2. Ensaiar o pacote completo em ambiente isolado, inclusive via PostgREST: JSON para arrays uuid/text (e id numérico), RLS, erro na equipa, compatibilidade de clientes antigos, sessão expirada e sanidade do fluxo abrir → validar/fechar. Se não corresponder ao fixture, parar para ajustar.
+3. Quando autorizado, instalar a migração SQL antes de publicar o cliente. Nenhum registo é alterado pela migração. Para reverter, remover primeiro o cliente que depende do RPC; se for necessário, remover só a função com o SQL de rollback. A reversão não altera registos já gravados. O rollback do ponto 2 é separado.
+
+## Testes nativos
+Num cluster descartável vazio por socket local (`PGHOST=/tmp/sigo-qa`, `PGPORT=55433`, `PGDATABASE=postgres`), nunca num projeto ligado à operação, executar `psql -X -v ON_ERROR_STOP=1 -f tests/shift-open-atomic.sql` e depois `SIGO_OPEN_QA_SOCKET=/tmp/sigo-qa node tests/shift-open-concurrency.mjs`. O fixture inclui a migração do ponto 2. O teste de concorrência observa espera real pela mesma unidade e recusa uma segunda abertura; não implica unicidade para escritores antigos. Verificar separadamente o rollback num fixture descartável.
