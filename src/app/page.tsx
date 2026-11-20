@@ -319,6 +319,7 @@ function QuickAccessCard({
   icon,
   href,
   locked = false,
+  lockLabel = "Requer turno aberto",
   accent = "slate",
   primary = false,
 }: {
@@ -327,6 +328,7 @@ function QuickAccessCard({
   icon: ReactNode;
   href?: string;
   locked?: boolean;
+  lockLabel?: string;
   accent?: "orange" | "blue" | "slate";
   primary?: boolean;
 }) {
@@ -389,8 +391,8 @@ function QuickAccessCard({
       <div className="mt-auto flex items-end justify-end gap-1.5 pt-0.5">
         {locked ? (
           <>
-            <span className="text-[11px] font-medium text-slate-400">Requer turno aberto</span>
-            <span className={`flex h-7.5 w-7.5 items-center justify-center rounded-[0.68rem] border border-slate-200 bg-white ${accentClasses.lock}`}>
+            <span className="text-right text-[11px] font-medium text-slate-400">{lockLabel}</span>
+            <span className={`flex h-7.5 w-7.5 shrink-0 items-center justify-center rounded-[0.68rem] border border-slate-200 bg-white ${accentClasses.lock}`}>
               <LockIcon />
             </span>
           </>
@@ -473,6 +475,15 @@ export default function Home() {
   const [openShiftOpenedByName, setOpenShiftOpenedByName] = useState("—");
   const [lastOperationalEventAt, setLastOperationalEventAt] = useState<string | null>(null);
   const [activeOccurrencesCount, setActiveOccurrencesCount] = useState(0);
+  const [closeOccurrenceCheck, setCloseOccurrenceCheck] = useState<{
+    shiftId: number;
+    failed: boolean;
+  } | null>(null);
+  const [closePositionCheck, setClosePositionCheck] = useState<{
+    shiftId: number;
+    failed: boolean;
+    activeCount: number;
+  } | null>(null);
   const [activePendingCount, setActivePendingCount] = useState(0);
   const [activePositionLogs, setActivePositionLogs] = useState<ActivePositionLog[]>([]);
   const [positionLogsCount, setPositionLogsCount] = useState(0);
@@ -844,12 +855,13 @@ export default function Home() {
     const loadShiftCounters = async () => {
       if (!currentShiftId) {
         if (!active) return;
+        setCloseOccurrenceCheck(null);
         setActiveOccurrencesCount(0);
         setActivePendingCount(0);
         return;
       }
 
-      const [{ count: totalCount }, { count: pendingCount }] = await Promise.all([
+      const [{ count: totalCount, error: totalError }, { count: pendingCount }] = await Promise.all([
         supabase
           .from("occurrences")
           .select("*", { count: "exact", head: true })
@@ -864,6 +876,10 @@ export default function Home() {
       if (!active) return;
       setActiveOccurrencesCount(totalCount || 0);
       setActivePendingCount(pendingCount || 0);
+      setCloseOccurrenceCheck({
+        shiftId: currentShiftId,
+        failed: !!totalError || totalCount === null,
+      });
     };
 
     void loadShiftCounters();
@@ -907,11 +923,12 @@ export default function Home() {
     const loadActivePositionLogs = async () => {
       if (!currentShiftId) {
         if (!active) return;
+        setClosePositionCheck(null);
         setActivePositionLogs([]);
         return;
       }
 
-      const { data: logsData } = await supabase
+      const { data: logsData, error: logsError } = await supabase
         .from("shift_position_logs")
         .select("id, user_id, entered_at_utc, left_at_utc, notes")
         .eq("shift_id", currentShiftId)
@@ -921,6 +938,11 @@ export default function Home() {
       if (!active) return;
 
       const rawLogs = logsData || [];
+      setClosePositionCheck({
+        shiftId: currentShiftId,
+        failed: !!logsError || logsData === null,
+        activeCount: rawLogs.length,
+      });
       if (rawLogs.length === 0) {
         setActivePositionLogs([]);
         return;
@@ -969,8 +991,26 @@ export default function Home() {
   ].join(" · ");
 
   const quickAccessTurnActionLabel = hasOpenShift ? "Encerrar turno" : "Abrir turno";
+  const occurrenceCheck = closeOccurrenceCheck?.shiftId === openShift?.id
+    ? closeOccurrenceCheck : null;
+  const positionCheck = closePositionCheck?.shiftId === openShift?.id
+    ? closePositionCheck : null;
   const quickAccessNeedsOccurrenceValidation =
+    !!occurrenceCheck && !occurrenceCheck.failed &&
     requiresValidationForClose && !isOpenShiftValidated;
+  const quickAccessCloseReasons = [
+    quickAccessNeedsOccurrenceValidation ? "Validação pendente" : "",
+    positionCheck && !positionCheck.failed && positionCheck.activeCount > 0
+      ? "Posição ativa" : "",
+    !canCloseCurrentShift ? "Só quem abriu" : "",
+  ].filter(Boolean);
+  const quickAccessCloseLockLabel = !hasOpenShift ? null
+    : quickAccessCloseReasons.length > 0 ? quickAccessCloseReasons.join(" · ")
+    : positionCheck?.failed || (!isOpenShiftValidated && occurrenceCheck?.failed)
+      ? "Verificação indisponível"
+      : !positionCheck || (!isOpenShiftValidated && !occurrenceCheck)
+        ? "A verificar o turno"
+        : null;
   const quickAccessTurnActionDescription = !hasOpenShift
     ? "Iniciar novo turno"
     : quickAccessNeedsOccurrenceValidation
@@ -1475,16 +1515,26 @@ export default function Home() {
                 </div>
 
                 <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                  {hasOpenShift &&
-                  (!canCloseCurrentShift || quickAccessNeedsOccurrenceValidation) ? (
-                    <QuickAccessCard
-                      title={quickAccessTurnActionLabel}
-                      description={quickAccessTurnActionDescription}
-                      icon={<LogoutIcon />}
-                      locked
-                      accent="orange"
-                      primary
-                    />
+                  {quickAccessCloseLockLabel ? (
+                    <div className="flex min-w-0 flex-col gap-1.5">
+                      <QuickAccessCard
+                        title={quickAccessTurnActionLabel}
+                        description={quickAccessTurnActionDescription}
+                        icon={<LogoutIcon />}
+                        locked
+                        lockLabel={quickAccessCloseLockLabel}
+                        accent="orange"
+                        primary
+                      />
+                      {canCloseCurrentShift && (
+                        <Link
+                          href="/shifts/close"
+                          className="self-end text-xs font-medium text-slate-600 underline underline-offset-2"
+                        >
+                          Ver requisitos de fecho
+                        </Link>
+                      )}
+                    </div>
                   ) : (
                     <QuickAccessCard
                       title={quickAccessTurnActionLabel}
